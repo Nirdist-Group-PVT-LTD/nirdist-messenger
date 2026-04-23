@@ -8,7 +8,6 @@ services:
     dockerfilePath: back-end/Dockerfile
     dockerContext: back-end
     healthCheckPath: /api/health
-    maxShutdownDelaySeconds: 60
     envVars:
       - key: JDBC_DATABASE_URL
         fromDatabase:
