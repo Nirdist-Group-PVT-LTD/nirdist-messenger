@@ -30,6 +30,7 @@ services:
 
 databases:
   - name: nirdist-db
+    plan: free
     databaseName: nirdist
     user: nirdist_user
     postgresMajorVersion: "15"
