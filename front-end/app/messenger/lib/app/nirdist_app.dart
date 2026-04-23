@@ -17,10 +17,10 @@ class NirdistApp extends StatelessWidget {
   }
 
   ThemeData _buildTheme() {
-    const seedColor = Color(0xFF0ED1C6);
-    const backgroundColor = Color(0xFF071018);
-    const surfaceColor = Color(0xFF0D1720);
-    const surfaceVariantColor = Color(0xFF12202B);
+    const seedColor = Color(0xFFE4572E);
+    const backgroundColor = Color(0xFF0B0F14);
+    const surfaceColor = Color(0xFF131A22);
+    const surfaceVariantColor = Color(0xFF1B2430);
 
     final colorScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
@@ -29,8 +29,9 @@ class NirdistApp extends StatelessWidget {
       surface: surfaceColor,
       surfaceContainerHighest: surfaceVariantColor,
       primary: seedColor,
-      secondary: const Color(0xFFFFB84D),
-      tertiary: const Color(0xFF95F0D1),
+      secondary: const Color(0xFFFF9F1C),
+      tertiary: const Color(0xFF38B6FF),
+      onPrimary: Colors.white,
     );
 
     final baseTheme = ThemeData(
@@ -42,13 +43,13 @@ class NirdistApp extends StatelessWidget {
 
     final textTheme = GoogleFonts.interTextTheme(baseTheme.textTheme).copyWith(
       headlineLarge: GoogleFonts.spaceGrotesk(
-        fontSize: 36,
+        fontSize: 34,
         fontWeight: FontWeight.w700,
         color: colorScheme.onSurface,
-        letterSpacing: -1.2,
+        letterSpacing: -1.0,
       ),
       headlineMedium: GoogleFonts.spaceGrotesk(
-        fontSize: 28,
+        fontSize: 27,
         fontWeight: FontWeight.w700,
         color: colorScheme.onSurface,
         letterSpacing: -0.6,
@@ -101,8 +102,14 @@ class NirdistApp extends StatelessWidget {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: surfaceColor,
-        indicatorColor: seedColor.withValues(alpha: 0.18),
+        backgroundColor: surfaceColor.withValues(alpha: 0.88),
+        indicatorColor: seedColor.withValues(alpha: 0.22),
+        labelTextStyle: WidgetStatePropertyAll(
+          GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -118,7 +125,7 @@ class NirdistApp extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: seedColor.withValues(alpha: 0.75), width: 1.4),
+          borderSide: BorderSide(color: seedColor.withValues(alpha: 0.9), width: 1.6),
         ),
         labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
         hintStyle: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.78)),
@@ -139,7 +146,7 @@ class NirdistApp extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           foregroundColor: colorScheme.onSurface,
           minimumSize: const Size.fromHeight(54),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.16)),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           textStyle: GoogleFonts.inter(
             fontSize: 15,
@@ -154,6 +161,15 @@ class NirdistApp extends StatelessWidget {
         labelStyle: textTheme.bodyMedium!,
         side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF1A2330),
+        contentTextStyle: GoogleFonts.inter(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

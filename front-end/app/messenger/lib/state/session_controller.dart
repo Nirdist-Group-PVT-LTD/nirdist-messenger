@@ -40,7 +40,7 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<bool> signIn({
-    required String idToken,
+    required String phoneNumber,
     String? username,
     String? displayName,
     String? email,
@@ -55,8 +55,8 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final session = await _authApiClient.exchangeFirebaseToken(
-        idToken: idToken,
+      final session = await _authApiClient.exchangePhoneNumber(
+        phoneNumber: phoneNumber,
         username: username,
         displayName: displayName,
         email: email,
@@ -68,7 +68,7 @@ class SessionController extends ChangeNotifier {
     } catch (error) {
       _errorMessage = error is AuthApiException
           ? error.message
-          : 'Unable to sign in. Check the backend URL and token details.';
+          : 'Unable to sign in. Check the phone login flow and backend URL.';
       return false;
     } finally {
       _isSubmitting = false;

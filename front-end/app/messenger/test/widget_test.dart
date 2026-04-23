@@ -109,6 +109,30 @@ class _FakeMessengerApiClient extends MessengerApiClient {
   }
 
   @override
+  Future<List<ProfileSummary>> searchProfiles({required String query, required int excludeUserId}) async {
+    final normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.contains('zoe')) {
+      return <ProfileSummary>[
+        const ProfileSummary(
+          vId: 4,
+          username: 'zoe.winter',
+          displayName: 'Zoe Winter',
+          email: 'zoe@example.com',
+          phoneNumber: '+15550000003',
+          firebaseUid: 'firebase-zoe',
+          avatarUrl: null,
+          bio: null,
+          phoneVerifiedAt: null,
+          createdAt: null,
+          updatedAt: null,
+        ),
+      ];
+    }
+
+    return <ProfileSummary>[];
+  }
+
+  @override
   Future<List<ChatRoomSummary>> listRooms(int userId) async {
     return <ChatRoomSummary>[
       ChatRoomSummary(
@@ -206,6 +230,56 @@ void main() {
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.text('Test User'), findsWidgets);
     expect(find.text('Home'), findsWidgets);
+  });
+
+  testWidgets('searches for other users in the people tab', (WidgetTester tester) async {
+    const profile = ProfileSummary(
+      vId: 1,
+      username: 'test.user',
+      displayName: 'Test User',
+      email: 'test@example.com',
+      phoneNumber: '+15550000000',
+      firebaseUid: 'firebase-test-user',
+      avatarUrl: null,
+      bio: null,
+      phoneVerifiedAt: null,
+      createdAt: null,
+      updatedAt: null,
+    );
+
+    const session = AuthSession(
+      token: 'token-1234567890',
+      profile: profile,
+      message: 'Login successful',
+      created: false,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MessengerShell(
+          session: session,
+          apiBaseUrl: 'http://localhost:8080/api',
+          onSignOut: () async {},
+          apiClient: _FakeMessengerApiClient(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('People'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'zoe');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Zoe Winter'), findsOneWidget);
+    expect(find.text('Request'), findsWidgets);
   });
 
   testWidgets('filters people in the people tab', (WidgetTester tester) async {

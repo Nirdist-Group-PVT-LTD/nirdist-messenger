@@ -257,6 +257,28 @@ class BackendFlowIntegrationTest {
         assertThat(getSuggestions(alice.vId())).isEmpty();
     }
 
+        @Test
+        void profileSearchFindsOtherUsersAndExcludesSelf() throws Exception {
+                ProfileResponse alice = createUser(
+                                "alice-search-token",
+                                firebaseUser("firebase-search-alice", "+1 (555) 200-0001"),
+                                "alice-search",
+                                "Alice Search",
+                                "alice.search@example.com"
+                ).profile();
+                ProfileResponse bob = createUser(
+                                "bob-search-token",
+                                firebaseUser("firebase-search-bob", "+1 (555) 200-0002"),
+                                "bobby.chat",
+                                "Bobby Chat",
+                                "bobby.chat@example.com"
+                ).profile();
+
+                List<ProfileResponse> matches = searchProfiles("bobby", alice.vId());
+                assertThat(matches).extracting(ProfileResponse::vId).containsExactly(bob.vId());
+                assertThat(searchProfiles("alice", alice.vId())).isEmpty();
+        }
+
     @Test
     void chatFlowRequiresAcceptedFriendshipAndCachesRecentMessages() throws Exception {
         ProfileResponse alice = createUser(
@@ -361,6 +383,17 @@ class BackendFlowIntegrationTest {
                 .andReturn();
 
         return objectMapper.readValue(result.getResponse().getContentAsString(), ContactSyncResponse.class);
+    }
+
+    private List<ProfileResponse> searchProfiles(String query, Long excludeUserId) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/social/profiles/search")
+                        .param("q", query)
+                        .param("excludeUserId", excludeUserId.toString()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        return objectMapper.readerForListOf(ProfileResponse.class)
+                .readValue(result.getResponse().getContentAsString());
     }
 
     private List<ProfileResponse> listFriends(Long userId) throws Exception {

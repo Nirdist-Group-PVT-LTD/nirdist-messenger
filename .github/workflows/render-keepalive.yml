@@ -1,0 +1,33 @@
+name: Render Keep Alive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping Render health endpoint
+        env:
+          RENDER_KEEPALIVE_URL: ${{ secrets.RENDER_KEEPALIVE_URL }}
+        run: |
+          set -euo pipefail
+
+          url="${RENDER_KEEPALIVE_URL:-https://api.nirdist.com.np/api/health}"
+
+          for attempt in 1 2 3; do
+            echo "Ping attempt ${attempt}: ${url}"
+            if curl --fail --silent --show-error --max-time 20 "$url" >/dev/null; then
+              echo "Render service responded successfully."
+              exit 0
+            fi
+
+            echo "Ping failed, retrying in 20 seconds..."
+            sleep 20
+          done
+
+          echo "Render keep-alive ping failed after 3 attempts."
+          exit 1

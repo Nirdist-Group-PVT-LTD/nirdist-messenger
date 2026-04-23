@@ -221,6 +221,23 @@ public class SocialGraphService {
         return new ArrayList<>(suggestionsById.values());
     }
 
+    public List<ProfileResponse> searchProfiles(String query, Long excludeUserId) {
+        String normalizedQuery = trimToNull(query);
+        if (normalizedQuery == null) {
+            return List.of();
+        }
+
+        Long normalizedExcludeUserId = excludeUserId == null ? null : requirePositiveId(excludeUserId, "excludeUserId");
+        if (normalizedExcludeUserId != null) {
+            getProfileOrThrow(normalizedExcludeUserId);
+        }
+
+        return profileRepository.searchProfiles(normalizedQuery, normalizedExcludeUserId).stream()
+                .limit(20)
+                .map(this::toProfileResponse)
+                .toList();
+    }
+
     public CommunicationPermissionResponse canMessage(Long userId, Long otherUserId) {
         return buildPermissionResponse(userId, otherUserId, "message");
     }
@@ -393,16 +410,19 @@ public class SocialGraphService {
             return null;
         }
 
-        String digitsOnly = trimmed.replaceAll("[^0-9]", "");
-        if (digitsOnly.isBlank()) {
+        StringBuilder digits = new StringBuilder();
+        for (int index = 0; index < trimmed.length(); index++) {
+            char current = trimmed.charAt(index);
+            if (Character.isDigit(current)) {
+                digits.append(current);
+            }
+        }
+
+        if (digits.length() == 0) {
             return null;
         }
 
-        if (trimmed.startsWith("+")) {
-            return "+" + digitsOnly;
-        }
-
-        return digitsOnly;
+        return "+" + digits;
     }
 
     private String trimToNull(String value) {

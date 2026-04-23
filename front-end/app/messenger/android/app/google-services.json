@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "122555402665",
+    "project_id": "messanger-nirdist",
+    "storage_bucket": "messanger-nirdist.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:122555402665:android:cdfac8e1642a12c6b29cb8",
+        "android_client_info": {
+          "package_name": "np.com.nirdist.messanger"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9UL-2o5Ea3T1qAU9rjbHeTUG6zVd76AA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

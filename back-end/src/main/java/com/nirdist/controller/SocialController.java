@@ -65,6 +65,14 @@ public class SocialController {
         return socialGraphService.getSuggestions(userId);
     }
 
+    @GetMapping("/profiles/search")
+    public List<ProfileResponse> searchProfiles(
+            @RequestParam String q,
+            @RequestParam(required = false) Long excludeUserId
+    ) {
+        return socialGraphService.searchProfiles(q, excludeUserId);
+    }
+
     @GetMapping("/permissions/message")
     public CommunicationPermissionResponse canMessage(
             @RequestParam Long userId,

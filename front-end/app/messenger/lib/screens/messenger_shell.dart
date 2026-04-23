@@ -90,6 +90,7 @@ class _MessengerShellState extends State<MessengerShell> {
         isLoading: _isLoading || _isRefreshing,
         errorMessage: _errorMessage,
         onRefresh: _refresh,
+        searchProfiles: _searchProfiles,
         onStartConversation: _startConversation,
         onSendFriendRequest: _sendFriendRequest,
       ),
@@ -194,6 +195,13 @@ class _MessengerShellState extends State<MessengerShell> {
     });
 
     await _loadDashboard();
+  }
+
+  Future<List<ProfileSummary>> _searchProfiles(String query) {
+    return _apiClient.searchProfiles(
+      query: query,
+      excludeUserId: widget.session.profile.vId,
+    );
   }
 
   Future<_RoomPreview> _buildRoomPreview(ChatRoomSummary room, Map<int, ProfileSummary> profilesById) async {
@@ -468,6 +476,7 @@ class _PeopleTab extends StatefulWidget {
     required this.isLoading,
     required this.errorMessage,
     required this.onRefresh,
+    required this.searchProfiles,
     required this.onStartConversation,
     required this.onSendFriendRequest,
   });
@@ -478,6 +487,7 @@ class _PeopleTab extends StatefulWidget {
   final bool isLoading;
   final String? errorMessage;
   final Future<void> Function() onRefresh;
+  final Future<List<ProfileSummary>> Function(String query) searchProfiles;
   final Future<void> Function(ProfileSummary profile) onStartConversation;
   final Future<void> Function(ProfileSummary profile) onSendFriendRequest;
 
@@ -488,6 +498,10 @@ class _PeopleTab extends StatefulWidget {
 class _PeopleTabState extends State<_PeopleTab> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  List<ProfileSummary> _searchResults = <ProfileSummary>[];
+  bool _isSearchingProfiles = false;
+  String? _searchErrorMessage;
+  int _searchRequestId = 0;
 
   @override
   void dispose() {
@@ -512,9 +526,79 @@ class _PeopleTabState extends State<_PeopleTab> {
 
   void _clearSearch() {
     _searchController.clear();
+    _searchRequestId++;
     setState(() {
       _searchQuery = '';
+      _searchResults = <ProfileSummary>[];
+      _isSearchingProfiles = false;
+      _searchErrorMessage = null;
     });
+  }
+
+  Set<int> _knownProfileIds() {
+    return <int>{
+      widget.session.profile.vId,
+      ...widget.friends.map((profile) => profile.vId),
+      ...widget.suggestions.map((profile) => profile.vId),
+    };
+  }
+
+  void _handleSearchChanged(String value) {
+    setState(() {
+      _searchQuery = value;
+    });
+
+    _runSearch(value);
+  }
+
+  Future<void> _runSearch(String value) async {
+    final normalizedQuery = value.trim();
+    if (normalizedQuery.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _searchResults = <ProfileSummary>[];
+        _isSearchingProfiles = false;
+        _searchErrorMessage = null;
+      });
+      return;
+    }
+
+    final requestId = ++_searchRequestId;
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isSearchingProfiles = true;
+      _searchErrorMessage = null;
+    });
+
+    try {
+      final results = await widget.searchProfiles(normalizedQuery);
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+
+      setState(() {
+        _searchResults = results;
+        _isSearchingProfiles = false;
+      });
+    } catch (error) {
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+
+      setState(() {
+        _searchResults = <ProfileSummary>[];
+        _isSearchingProfiles = false;
+        _searchErrorMessage = error is MessengerApiException
+            ? error.message
+            : 'Unable to search people.';
+      });
+    }
   }
 
   @override
@@ -528,10 +612,14 @@ class _PeopleTabState extends State<_PeopleTab> {
         .toList(growable: false);
     final isSearching = normalizedQuery.isNotEmpty;
     final hasResults = filteredFriends.isNotEmpty || filteredSuggestions.isNotEmpty;
+    final discoveredPeople = _searchResults
+        .where((profile) => !_knownProfileIds().contains(profile.vId))
+        .toList(growable: false);
+    final hasDiscoveredPeople = discoveredPeople.isNotEmpty;
 
     return _ShellScaffold(
       title: 'People',
-      subtitle: 'Friends first, suggestions second.',
+      subtitle: 'Search people, then request or chat.',
       session: widget.session,
       onRefresh: widget.onRefresh,
       isLoading: widget.isLoading,
@@ -546,10 +634,11 @@ class _PeopleTabState extends State<_PeopleTab> {
           ),
           child: TextField(
             controller: _searchController,
-            onChanged: (value) => setState(() => _searchQuery = value),
+            onChanged: _handleSearchChanged,
+            onSubmitted: _runSearch,
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
-              labelText: 'Search people',
+                labelText: 'Search users',
               hintText: 'Name, username, email, or phone',
               prefixIcon: const Icon(Icons.search_rounded),
               suffixIcon: _searchController.text.isEmpty
@@ -564,7 +653,40 @@ class _PeopleTabState extends State<_PeopleTab> {
           ),
         ),
         const SizedBox(height: 18),
-        if (isSearching && !hasResults)
+          if (_isSearchingProfiles)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 18),
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
+          if (isSearching && _searchErrorMessage != null)
+            _EmptyStateCard(
+              icon: Icons.person_search_outlined,
+              title: 'Search failed',
+              subtitle: _searchErrorMessage!,
+              actionLabel: 'Retry',
+              onAction: () => _runSearch(_searchQuery),
+            )
+          else if (isSearching && hasDiscoveredPeople)
+            ...<Widget>[
+              const _SectionHeader(
+                title: 'Discover users',
+                subtitle: 'People outside your current friends and suggestions.',
+              ),
+              const SizedBox(height: 12),
+              ...discoveredPeople.map(
+                (profile) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _PersonTile(
+                    profile: profile,
+                    primaryLabel: 'Request',
+                    primaryIcon: Icons.person_add_alt_1,
+                    onPrimary: () => widget.onSendFriendRequest(profile),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+            ]
+          else if (isSearching && !hasResults)
           _EmptyStateCard(
             icon: Icons.person_search_outlined,
             title: 'No matching people',
@@ -600,6 +722,25 @@ class _PeopleTabState extends State<_PeopleTab> {
                 ),
               ),
             ),
+          if (isSearching && hasDiscoveredPeople) ...<Widget>[
+            const SizedBox(height: 18),
+            const _SectionHeader(
+              title: 'Discover users',
+              subtitle: 'People outside your current friends and suggestions.',
+            ),
+            const SizedBox(height: 12),
+            ...discoveredPeople.map(
+              (profile) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _PersonTile(
+                  profile: profile,
+                  primaryLabel: 'Request',
+                  primaryIcon: Icons.person_add_alt_1,
+                  onPrimary: () => widget.onSendFriendRequest(profile),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           const _SectionHeader(
             title: 'Suggestions',
@@ -1909,179 +2050,6 @@ class _ChatsTab extends StatelessWidget {
   }
 }
 
-class _PeopleTab extends StatelessWidget {
-  const _PeopleTab({
-    required this.session,
-    required this.friends,
-    required this.suggestions,
-    required this.isRefreshing,
-    required this.errorMessage,
-    required this.onRefresh,
-    required this.onOpenConversation,
-    required this.onSendFriendRequest,
-  });
-
-  final AuthSession session;
-  final List<ProfileSummary> friends;
-  final List<ProfileSummary> suggestions;
-  final bool isRefreshing;
-  final String? errorMessage;
-  final Future<void> Function() onRefresh;
-  final ValueChanged<ProfileSummary> onOpenConversation;
-  final ValueChanged<ProfileSummary> onSendFriendRequest;
-
-  @override
-  Widget build(BuildContext context) {
-    return _DashboardScaffold(
-      session: session,
-      title: 'People',
-      subtitle: 'Friends can be messaged. Suggestions can be requested.',
-      onRefresh: onRefresh,
-      isRefreshing: isRefreshing,
-      errorMessage: errorMessage,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        children: <Widget>[
-          _SectionHeader(
-            title: 'Friends',
-            subtitle: 'Accepted connections can be opened instantly.',
-          ),
-          const SizedBox(height: 12),
-          if (friends.isEmpty)
-            _EmptyCard(
-              icon: Icons.group_outlined,
-              title: 'No friends yet',
-              subtitle: 'Send a request to one of the suggested profiles below.',
-              actionLabel: 'Refresh',
-              onAction: onRefresh,
-            )
-          else
-            ...friends.map(
-              (friend) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _PersonCard(
-                  profile: friend,
-                  tag: 'Friend',
-                  primaryLabel: 'Chat',
-                  secondaryLabel: 'Call',
-                  onPrimary: () => onOpenConversation(friend),
-                  onSecondary: () => _showSoonSnack(context, 'Call flow is coming in the next iteration.'),
-                ),
-              ),
-            ),
-          const SizedBox(height: 18),
-          _SectionHeader(
-            title: 'Suggestions',
-            subtitle: 'Potential connections from the social graph.',
-          ),
-          const SizedBox(height: 12),
-          if (suggestions.isEmpty)
-            _EmptyCard(
-              icon: Icons.person_search_outlined,
-              title: 'No suggestions yet',
-              subtitle: 'The social graph can surface more users once contacts sync is connected.',
-              actionLabel: 'Refresh',
-              onAction: onRefresh,
-            )
-          else
-            ...suggestions.map(
-              (profile) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _PersonCard(
-                  profile: profile,
-                  tag: 'Suggested',
-                  primaryLabel: 'Request',
-                  secondaryLabel: 'Preview',
-                  onPrimary: () => onSendFriendRequest(profile),
-                  onSecondary: () => onOpenConversation(profile),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileTab extends StatelessWidget {
-  const _ProfileTab({
-    required this.session,
-    required this.apiBaseUrl,
-    required this.onSignOut,
-  });
-
-  final AuthSession session;
-  final String apiBaseUrl;
-  final Future<void> Function() onSignOut;
-
-  @override
-  Widget build(BuildContext context) {
-    return _DashboardScaffold(
-      session: session,
-      title: 'Profile',
-      subtitle: 'Session details and secure storage status.',
-      onRefresh: () async {},
-      isRefreshing: false,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        children: <Widget>[
-          _ProfileCard(profile: session.profile),
-          const SizedBox(height: 18),
-          _DetailCard(
-            title: 'Session',
-            rows: <_DetailRow>[
-              _DetailRow(label: 'Backend URL', value: apiBaseUrl),
-              _DetailRow(label: 'JWT', value: _maskedToken(session.token)),
-              _DetailRow(label: 'Created', value: _formatDate(session.profile.createdAt)),
-              _DetailRow(label: 'Updated', value: _formatDate(session.profile.updatedAt)),
-            ],
-          ),
-          const SizedBox(height: 18),
-          _DetailCard(
-            title: 'Account',
-            rows: <_DetailRow>[
-              _DetailRow(label: 'Display name', value: session.profile.displayName ?? '—'),
-              _DetailRow(label: 'Username', value: session.profile.username ?? '—'),
-              _DetailRow(label: 'Email', value: session.profile.email ?? '—'),
-              _DetailRow(label: 'Phone', value: session.profile.phoneNumber ?? '—'),
-              _DetailRow(label: 'Firebase UID', value: session.profile.firebaseUid ?? '—'),
-            ],
-          ),
-          const SizedBox(height: 18),
-          FilledButton.tonalIcon(
-            onPressed: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (dialogContext) {
-                  return AlertDialog(
-                    title: const Text('Sign out?'),
-                    content: const Text('This clears the stored JWT and returns to the login screen.'),
-                    actions: <Widget>[
-                      TextButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(false),
-                        child: const Text('Cancel'),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(true),
-                        child: const Text('Sign out'),
-                      ),
-                    ],
-                  );
-                },
-              );
-
-              if (confirmed == true && context.mounted) {
-                await onSignOut();
-              }
-            },
-            icon: const Icon(Icons.logout),
-            label: const Text('Sign out'),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _DashboardScaffold extends StatelessWidget {
   const _DashboardScaffold({
