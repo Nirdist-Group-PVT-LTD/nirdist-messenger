@@ -1,23 +1,25 @@
 package com.nirdist.service;
 
-import com.nirdist.auth.FirebaseTokenVerifier;
-import com.nirdist.auth.FirebaseVerifiedUser;
-import com.nirdist.dto.AuthResponse;
-import com.nirdist.dto.FirebaseAuthExchangeRequest;
-import com.nirdist.dto.ProfileResponse;
-import com.nirdist.entity.Profile;
-import com.nirdist.repository.ProfileRepository;
-import com.nirdist.security.JwtTokenProvider;
-import com.nirdist.util.PhoneNumberNormalizer;
+import java.time.OffsetDateTime;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.OffsetDateTime;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.Optional;
+import com.nirdist.auth.FirebaseTokenVerifier;
+import com.nirdist.auth.FirebaseVerifiedUser;
+import com.nirdist.dto.AuthResponse;
+import com.nirdist.dto.FirebaseAuthExchangeRequest;
+import com.nirdist.dto.PhoneAuthExchangeRequest;
+import com.nirdist.dto.ProfileResponse;
+import com.nirdist.entity.Profile;
+import com.nirdist.repository.ProfileRepository;
+import com.nirdist.security.JwtTokenProvider;
+import com.nirdist.util.PhoneNumberNormalizer;
 
 @Service
 @Transactional
@@ -37,6 +39,36 @@ public class AuthService {
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
+    public AuthResponse exchangePhoneNumber(PhoneAuthExchangeRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "request body is required");
+        }
+
+        String phoneNumber = requirePhoneNumber(request.phoneNumber());
+
+        Profile profile = profileRepository.findByPhoneNumber(phoneNumber)
+                .orElseGet(Profile::new);
+        boolean created = profile.getVId() == null;
+
+        if (created) {
+            profile.setFirebaseUid(buildDirectFirebaseUid(phoneNumber));
+        }
+
+        String username = resolveUsername(profile, request.username(), phoneNumber);
+        String displayName = resolveDisplayName(request.displayName(), username);
+        String email = firstNonBlank(request.email(), profile.getEmail());
+        String avatarUrl = firstNonBlank(request.avatarUrl(), profile.getAvatarUrl());
+
+        profile.setUsername(username);
+        profile.setDisplayName(displayName);
+        profile.setEmail(email);
+        profile.setPhoneNumber(phoneNumber);
+        profile.setAvatarUrl(avatarUrl);
+
+        Profile savedProfile = profileRepository.save(profile);
+        return buildAuthResponse(savedProfile, created);
+    }
+
     public AuthResponse exchangeFirebaseToken(FirebaseAuthExchangeRequest request) {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "request body is required");
@@ -48,17 +80,17 @@ public class AuthService {
         }
 
         FirebaseVerifiedUser firebaseUser = firebaseTokenVerifier.verify(idToken);
-        String phoneNumber = requireVerifiedPhoneNumber(firebaseUser.phoneNumber());
+        String phoneNumber = requirePhoneNumber(firebaseUser.phoneNumber());
         String firebaseUid = requireVerifiedUid(firebaseUser.uid());
 
         Profile profile = findExistingProfile(firebaseUid, phoneNumber)
                 .orElseGet(Profile::new);
         boolean created = profile.getVId() == null;
 
-        String username = resolveUsername(profile, request.username(), firebaseUser, phoneNumber);
-        String displayName = resolveDisplayName(request.displayName(), firebaseUser, username);
-        String email = firstNonBlank(request.email(), firebaseUser.email(), profile.getEmail());
-        String avatarUrl = firstNonBlank(request.avatarUrl(), firebaseUser.avatarUrl(), profile.getAvatarUrl());
+        String username = resolveUsername(profile, request.username(), phoneNumber);
+        String displayName = resolveDisplayName(request.displayName(), username);
+        String email = firstNonBlank(request.email(), profile.getEmail());
+        String avatarUrl = firstNonBlank(request.avatarUrl(), profile.getAvatarUrl());
 
         profile.setUsername(username);
         profile.setDisplayName(displayName);
@@ -69,14 +101,7 @@ public class AuthService {
         profile.setPhoneVerifiedAt(OffsetDateTime.now());
 
         Profile savedProfile = profileRepository.save(profile);
-        String token = jwtTokenProvider.generateToken(savedProfile);
-
-        return new AuthResponse(
-                token,
-                toProfileResponse(savedProfile),
-                created ? "Registration successful" : "Login successful",
-                created
-        );
+        return buildAuthResponse(savedProfile, created);
     }
 
     private Optional<Profile> findExistingProfile(String firebaseUid, String phoneNumber) {
@@ -88,10 +113,21 @@ public class AuthService {
         return profileRepository.findByPhoneNumber(phoneNumber);
     }
 
-    private String requireVerifiedPhoneNumber(String phoneNumber) {
+    private AuthResponse buildAuthResponse(Profile savedProfile, boolean created) {
+        String token = jwtTokenProvider.generateToken(savedProfile);
+
+        return new AuthResponse(
+                token,
+                toProfileResponse(savedProfile),
+                created ? "Signup successful" : "Login successful",
+                created
+        );
+    }
+
+    private String requirePhoneNumber(String phoneNumber) {
         String normalizedPhone = PhoneNumberNormalizer.normalize(phoneNumber);
         if (normalizedPhone == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Firebase token does not contain a verified phone number");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "phone number is required");
         }
 
         return normalizedPhone;
@@ -106,18 +142,22 @@ public class AuthService {
         return normalizedUid;
     }
 
-    private String resolveUsername(Profile profile, String requestedUsername, FirebaseVerifiedUser firebaseUser, String phoneNumber) {
+    private String resolveUsername(Profile profile, String requestedUsername, String phoneNumber) {
         if (profile.getVId() != null && profile.getUsername() != null && !profile.getUsername().isBlank()) {
             return profile.getUsername();
         }
 
-        String baseUsername = firstNonBlank(requestedUsername, firebaseUser.displayName(), phoneNumber.replaceAll("[^a-zA-Z0-9]", ""), "user");
+        String baseUsername = firstNonBlank(requestedUsername, phoneNumber.replaceAll("[^a-zA-Z0-9]", ""), "user");
         String normalizedBase = normalizeUsername(baseUsername);
         return ensureUniqueUsername(normalizedBase, profile.getVId());
     }
 
-    private String resolveDisplayName(String requestedDisplayName, FirebaseVerifiedUser firebaseUser, String username) {
-        return firstNonBlank(requestedDisplayName, firebaseUser.displayName(), username, "Nirdist User");
+    private String resolveDisplayName(String requestedDisplayName, String username) {
+        return firstNonBlank(requestedDisplayName, username, "Nirdist User");
+    }
+
+    private String buildDirectFirebaseUid(String phoneNumber) {
+        return "direct-phone:" + phoneNumber;
     }
 
     private String normalizeUsername(String value) {

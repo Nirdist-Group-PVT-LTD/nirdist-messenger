@@ -40,6 +40,7 @@ import com.nirdist.dto.FirebaseAuthExchangeRequest;
 import com.nirdist.dto.FriendRequestActionRequest;
 import com.nirdist.dto.FriendRequestCreateRequest;
 import com.nirdist.dto.FriendRequestResponse;
+import com.nirdist.dto.PhoneAuthExchangeRequest;
 import com.nirdist.dto.ProfileResponse;
 import com.nirdist.entity.ContactSyncEntry;
 import com.nirdist.entity.Profile;
@@ -119,10 +120,7 @@ class BackendFlowIntegrationTest {
     void authExchangeCreatesAndUpdatesProfile() throws Exception {
         FirebaseVerifiedUser firebaseUser = firebaseUser(
                 "firebase-alice",
-                " +1 (555) 000-0001 ",
-                "Alice Firebase",
-                "alice.firebase@example.com",
-                "https://cdn.example.com/alice.png"
+                " +1 (555) 000-0001 "
         );
 
         AuthResponse createdResponse = exchangeAuth(
@@ -138,7 +136,7 @@ class BackendFlowIntegrationTest {
         );
 
         assertThat(createdResponse.created()).isTrue();
-        assertThat(createdResponse.message()).isEqualTo("Registration successful");
+        assertThat(createdResponse.message()).isEqualTo("Signup successful");
         assertThat(createdResponse.token()).isEqualTo("jwt-" + createdResponse.profile().vId());
         assertThat(createdResponse.profile().username()).isEqualTo("alice");
         assertThat(createdResponse.profile().displayName()).isEqualTo("Alice");
@@ -166,17 +164,58 @@ class BackendFlowIntegrationTest {
     }
 
     @Test
+    void phoneExchangeCreatesAndUpdatesProfileWithoutVerification() throws Exception {
+        AuthResponse createdResponse = exchangePhoneAuth(
+                new PhoneAuthExchangeRequest(
+                        " +1 (555) 100-0001 ",
+                        "temp.alice",
+                        "Temp Alice",
+                        "alice@example.com",
+                        "https://cdn.example.com/alice.png"
+                )
+        );
+
+        assertThat(createdResponse.created()).isTrue();
+        assertThat(createdResponse.message()).isEqualTo("Signup successful");
+        assertThat(createdResponse.token()).isEqualTo("jwt-" + createdResponse.profile().vId());
+        assertThat(createdResponse.profile().username()).isEqualTo("temp.alice");
+        assertThat(createdResponse.profile().displayName()).isEqualTo("Temp Alice");
+        assertThat(createdResponse.profile().phoneNumber()).isEqualTo("+15551000001");
+        assertThat(createdResponse.profile().firebaseUid()).isEqualTo("direct-phone:+15551000001");
+        assertThat(createdResponse.profile().phoneVerifiedAt()).isNull();
+
+        AuthResponse loginResponse = exchangePhoneAuth(
+                new PhoneAuthExchangeRequest(
+                        " +1 (555) 100-0001 ",
+                        "ignored-username",
+                        "Temp Alice Updated",
+                        null,
+                        null
+                )
+        );
+
+        assertThat(loginResponse.created()).isFalse();
+        assertThat(loginResponse.message()).isEqualTo("Login successful");
+        assertThat(loginResponse.profile().vId()).isEqualTo(createdResponse.profile().vId());
+        assertThat(loginResponse.profile().username()).isEqualTo("temp.alice");
+        assertThat(loginResponse.profile().displayName()).isEqualTo("Temp Alice Updated");
+        assertThat(loginResponse.profile().phoneNumber()).isEqualTo("+15551000001");
+        assertThat(loginResponse.profile().firebaseUid()).isEqualTo("direct-phone:+15551000001");
+        assertThat(loginResponse.profile().phoneVerifiedAt()).isNull();
+    }
+
+    @Test
     void contactSyncExposesMatchedAndSuggestedUsers() throws Exception {
         ProfileResponse alice = createUser(
                 "alice-token",
-                firebaseUser("firebase-alice", "+1 (555) 000-0001", "Alice Firebase", "alice@example.com", null),
+                firebaseUser("firebase-alice", "+1 (555) 000-0001"),
                 "alice",
                 "Alice",
                 "alice@example.com"
         ).profile();
         ProfileResponse bob = createUser(
                 "bob-token",
-                firebaseUser("firebase-bob", "+1 (555) 000-0002", "Bob Firebase", "bob@example.com", null),
+                firebaseUser("firebase-bob", "+1 (555) 000-0002"),
                 "bob",
                 "Bob",
                 "bob@example.com"
@@ -222,14 +261,14 @@ class BackendFlowIntegrationTest {
     void chatFlowRequiresAcceptedFriendshipAndCachesRecentMessages() throws Exception {
         ProfileResponse alice = createUser(
                 "alice-chat-token",
-                firebaseUser("firebase-chat-alice", "+1 (555) 100-0001", "Alice Chat", "alice.chat@example.com", null),
+                firebaseUser("firebase-chat-alice", "+1 (555) 100-0001"),
                 "alice-chat",
                 "Alice Chat",
                 "alice.chat@example.com"
         ).profile();
         ProfileResponse bob = createUser(
                 "bob-chat-token",
-                firebaseUser("firebase-chat-bob", "+1 (555) 100-0002", "Bob Chat", "bob.chat@example.com", null),
+                firebaseUser("firebase-chat-bob", "+1 (555) 100-0002"),
                 "bob-chat",
                 "Bob Chat",
                 "bob.chat@example.com"
@@ -283,6 +322,16 @@ class BackendFlowIntegrationTest {
 
         return objectMapper.readValue(result.getResponse().getContentAsString(), AuthResponse.class);
     }
+
+        private AuthResponse exchangePhoneAuth(PhoneAuthExchangeRequest request) throws Exception {
+                MvcResult result = mockMvc.perform(post("/api/auth/phone/exchange")
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().is2xxSuccessful())
+                                .andReturn();
+
+                return objectMapper.readValue(result.getResponse().getContentAsString(), AuthResponse.class);
+        }
 
     private FriendRequestResponse sendFriendRequest(Long requesterVId, Long addresseeVId, String message) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/social/friend-requests")
@@ -389,7 +438,7 @@ class BackendFlowIntegrationTest {
                 return objectMapper.readerForListOf(ChatRoomResponse.class).readValue(result.getResponse().getContentAsString());
         }
 
-    private FirebaseVerifiedUser firebaseUser(String uid, String phoneNumber, String displayName, String email, String avatarUrl) {
-        return new FirebaseVerifiedUser(uid, phoneNumber, displayName, email, avatarUrl);
+        private FirebaseVerifiedUser firebaseUser(String uid, String phoneNumber) {
+                return new FirebaseVerifiedUser(uid, phoneNumber);
     }
 }

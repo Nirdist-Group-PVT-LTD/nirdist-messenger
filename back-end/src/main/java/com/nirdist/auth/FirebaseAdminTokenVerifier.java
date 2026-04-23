@@ -1,22 +1,23 @@
 package com.nirdist.auth;
 
-import com.google.auth.oauth2.GoogleCredentials;
-import com.google.firebase.FirebaseApp;
-import com.google.firebase.FirebaseOptions;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseAuthException;
-import com.google.firebase.auth.FirebaseToken;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Component;
-import org.springframework.web.server.ResponseStatusException;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
+
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.FirebaseOptions;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthException;
+import com.google.firebase.auth.FirebaseToken;
 
 @Component
 public class FirebaseAdminTokenVerifier implements FirebaseTokenVerifier {
@@ -43,13 +44,10 @@ public class FirebaseAdminTokenVerifier implements FirebaseTokenVerifier {
             FirebaseToken decodedToken = FirebaseAuth.getInstance(getOrCreateFirebaseApp()).verifyIdToken(idToken);
             return new FirebaseVerifiedUser(
                     decodedToken.getUid(),
-                    extractPhoneNumber(decodedToken),
-                    decodedToken.getName(),
-                    decodedToken.getEmail(),
-                    decodedToken.getPicture()
+                    extractPhoneNumber(decodedToken)
             );
         } catch (FirebaseAuthException | IllegalStateException e) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Firebase token", e);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid phone verification token", e);
         }
     }
 
