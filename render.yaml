@@ -9,10 +9,18 @@ services:
     dockerContext: .
     healthCheckPath: /api/health
     envVars:
-      - key: JDBC_DATABASE_URL
+      - key: DB_HOST
         fromDatabase:
           name: nirdist-db
-          property: connectionString
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: nirdist-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: nirdist-db
+          property: database
       - key: DB_USER
         fromDatabase:
           name: nirdist-db
