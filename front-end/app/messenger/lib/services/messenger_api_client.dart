@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../models/chat_message_summary.dart';
 import '../models/chat_room_summary.dart';
 import '../models/profile_summary.dart';
+import 'api_base_url.dart';
 
 class MessengerApiClient {
   MessengerApiClient({
@@ -132,9 +133,7 @@ class MessengerApiClient {
   }
 
   Uri _buildUri(String path, [Map<String, dynamic>? queryParameters]) {
-    final normalizedBaseUrl = apiBaseUrl.endsWith('/')
-        ? apiBaseUrl.substring(0, apiBaseUrl.length - 1)
-        : apiBaseUrl;
+    final normalizedBaseUrl = normalizeApiBaseUrl(apiBaseUrl);
 
     final uri = Uri.parse('$normalizedBaseUrl$path');
     if (queryParameters == null || queryParameters.isEmpty) {

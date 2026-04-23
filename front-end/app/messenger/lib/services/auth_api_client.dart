@@ -4,11 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/auth_session.dart';
+import 'api_base_url.dart';
 
 class AuthApiClient {
   AuthApiClient({http.Client? client, String? apiBaseUrl})
       : _client = client ?? http.Client(),
-        apiBaseUrl = apiBaseUrl ?? _resolveBaseUrl();
+        apiBaseUrl = normalizeApiBaseUrl(apiBaseUrl ?? _resolveBaseUrl());
 
   final http.Client _client;
   final String apiBaseUrl;
@@ -16,12 +17,15 @@ class AuthApiClient {
   static String _resolveBaseUrl() {
     const configuredBaseUrl = String.fromEnvironment('NIRDIST_API_BASE_URL');
     if (configuredBaseUrl.isNotEmpty) {
-      return configuredBaseUrl;
+      return normalizeApiBaseUrl(configuredBaseUrl);
+    }
+
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return normalizeApiBaseUrl('https://nirdist-backend.onrender.com');
     }
 
     return switch (defaultTargetPlatform) {
-      TargetPlatform.android => 'http://10.0.2.2:8080/api',
-      _ => 'http://localhost:8080/api',
+      _ => normalizeApiBaseUrl('http://localhost:8080'),
     };
   }
 
@@ -49,7 +53,43 @@ class AuthApiClient {
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw AuthApiException(
-        'Backend rejected the Firebase token exchange (${response.statusCode}).',
+        'Backend rejected the verified phone sign-in (${response.statusCode}).',
+      );
+    }
+
+    final decodedBody = jsonDecode(response.body);
+    if (decodedBody is! Map<String, dynamic>) {
+      throw const AuthApiException('Unexpected auth response from backend.');
+    }
+
+    return AuthSession.fromJson(decodedBody);
+  }
+
+  Future<AuthSession> exchangePhoneNumber({
+    required String phoneNumber,
+    String? username,
+    String? displayName,
+    String? email,
+    String? avatarUrl,
+  }) async {
+    final response = await _client.post(
+      _buildUri('/auth/phone/exchange'),
+      headers: const <String, String>{
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(<String, dynamic>{
+        'phoneNumber': phoneNumber,
+        'username': username,
+        'displayName': displayName,
+        'email': email,
+        'avatarUrl': avatarUrl,
+      }),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AuthApiException(
+        'Backend rejected the direct phone sign-in (${response.statusCode}).',
       );
     }
 
