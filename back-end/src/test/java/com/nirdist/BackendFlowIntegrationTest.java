@@ -279,6 +279,34 @@ class BackendFlowIntegrationTest {
                 assertThat(searchProfiles("alice", alice.vId())).isEmpty();
         }
 
+            @Test
+            void profileDirectoryListsEveryoneExceptSelf() throws Exception {
+                ProfileResponse alice = createUser(
+                        "alice-directory-token",
+                        firebaseUser("firebase-directory-alice", "+1 (555) 300-0001"),
+                        "alice-directory",
+                        "Alice Directory",
+                        "alice.directory@example.com"
+                ).profile();
+                ProfileResponse bob = createUser(
+                        "bob-directory-token",
+                        firebaseUser("firebase-directory-bob", "+1 (555) 300-0002"),
+                        "bob-directory",
+                        "Bob Directory",
+                        "bob.directory@example.com"
+                ).profile();
+                ProfileResponse cara = createUser(
+                        "cara-directory-token",
+                        firebaseUser("firebase-directory-cara", "+1 (555) 300-0003"),
+                        "cara-directory",
+                        "Cara Directory",
+                        "cara.directory@example.com"
+                ).profile();
+
+                List<ProfileResponse> directory = listProfiles(alice.vId());
+                assertThat(directory).extracting(ProfileResponse::vId).containsExactly(bob.vId(), cara.vId());
+            }
+
     @Test
     void chatFlowRequiresAcceptedFriendshipAndCachesRecentMessages() throws Exception {
         ProfileResponse alice = createUser(
@@ -388,6 +416,16 @@ class BackendFlowIntegrationTest {
     private List<ProfileResponse> searchProfiles(String query, Long excludeUserId) throws Exception {
         MvcResult result = mockMvc.perform(get("/api/social/profiles/search")
                         .param("q", query)
+                        .param("excludeUserId", excludeUserId.toString()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        return objectMapper.readerForListOf(ProfileResponse.class)
+                .readValue(result.getResponse().getContentAsString());
+    }
+
+    private List<ProfileResponse> listProfiles(Long excludeUserId) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/social/profiles")
                         .param("excludeUserId", excludeUserId.toString()))
                 .andExpect(status().isOk())
                 .andReturn();

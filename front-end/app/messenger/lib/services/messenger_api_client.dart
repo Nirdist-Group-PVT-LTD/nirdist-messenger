@@ -38,6 +38,14 @@ class MessengerApiClient {
     return _decodeProfileList(response, 'suggestions');
   }
 
+  Future<List<ProfileSummary>> listProfiles(int userId) async {
+    final response = await _client.get(
+      _buildUri('/social/profiles', <String, dynamic>{'excludeUserId': userId}),
+      headers: _headers,
+    );
+    return _decodeProfileList(response, 'profiles');
+  }
+
   Future<List<ProfileSummary>> searchProfiles({
     required String query,
     required int excludeUserId,

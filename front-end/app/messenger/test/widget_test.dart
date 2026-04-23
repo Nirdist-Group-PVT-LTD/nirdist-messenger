@@ -109,6 +109,51 @@ class _FakeMessengerApiClient extends MessengerApiClient {
   }
 
   @override
+  Future<List<ProfileSummary>> listProfiles(int userId) async {
+    return <ProfileSummary>[
+      const ProfileSummary(
+        vId: 2,
+        username: 'test.friend',
+        displayName: 'Test Friend',
+        email: 'friend@example.com',
+        phoneNumber: '+15550000001',
+        firebaseUid: 'firebase-test-friend',
+        avatarUrl: null,
+        bio: null,
+        phoneVerifiedAt: null,
+        createdAt: null,
+        updatedAt: null,
+      ),
+      const ProfileSummary(
+        vId: 3,
+        username: 'request.buddy',
+        displayName: 'Request Buddy',
+        email: 'buddy@example.com',
+        phoneNumber: '+15550000002',
+        firebaseUid: 'firebase-request-buddy',
+        avatarUrl: null,
+        bio: null,
+        phoneVerifiedAt: null,
+        createdAt: null,
+        updatedAt: null,
+      ),
+      const ProfileSummary(
+        vId: 4,
+        username: 'zoe.winter',
+        displayName: 'Zoe Winter',
+        email: 'zoe@example.com',
+        phoneNumber: '+15550000003',
+        firebaseUid: 'firebase-zoe',
+        avatarUrl: null,
+        bio: null,
+        phoneVerifiedAt: null,
+        createdAt: null,
+        updatedAt: null,
+      ),
+    ];
+  }
+
+  @override
   Future<List<ProfileSummary>> searchProfiles({required String query, required int excludeUserId}) async {
     final normalizedQuery = query.trim().toLowerCase();
     if (normalizedQuery.contains('zoe')) {
@@ -278,6 +323,57 @@ void main() {
     await tester.enterText(find.byType(TextField), 'zoe');
     await tester.pumpAndSettle();
 
+    expect(find.text('Zoe Winter'), findsOneWidget);
+    expect(find.text('Request'), findsWidgets);
+    expect(find.text('Test Friend'), findsNothing);
+    expect(find.text('Request Buddy'), findsNothing);
+  });
+
+  testWidgets('shows the full user directory in the people tab', (WidgetTester tester) async {
+    const profile = ProfileSummary(
+      vId: 1,
+      username: 'test.user',
+      displayName: 'Test User',
+      email: 'test@example.com',
+      phoneNumber: '+15550000000',
+      firebaseUid: 'firebase-test-user',
+      avatarUrl: null,
+      bio: null,
+      phoneVerifiedAt: null,
+      createdAt: null,
+      updatedAt: null,
+    );
+
+    const session = AuthSession(
+      token: 'token-1234567890',
+      profile: profile,
+      message: 'Login successful',
+      created: false,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MessengerShell(
+          session: session,
+          apiBaseUrl: 'http://localhost:8080/api',
+          onSignOut: () async {},
+          apiClient: _FakeMessengerApiClient(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('People'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Test Friend'), findsOneWidget);
+    expect(find.text('Request Buddy'), findsOneWidget);
     expect(find.text('Zoe Winter'), findsOneWidget);
     expect(find.text('Request'), findsWidgets);
   });

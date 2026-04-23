@@ -36,6 +36,7 @@ class _MessengerShellState extends State<MessengerShell> {
 
   List<ProfileSummary> _friends = <ProfileSummary>[];
   List<ProfileSummary> _suggestions = <ProfileSummary>[];
+  List<ProfileSummary> _profiles = <ProfileSummary>[];
   List<_RoomPreview> _rooms = <_RoomPreview>[];
 
   @override
@@ -87,10 +88,10 @@ class _MessengerShellState extends State<MessengerShell> {
         session: widget.session,
         friends: _friends,
         suggestions: _suggestions,
+        allProfiles: _profiles,
         isLoading: _isLoading || _isRefreshing,
         errorMessage: _errorMessage,
         onRefresh: _refresh,
-        searchProfiles: _searchProfiles,
         onStartConversation: _startConversation,
         onSendFriendRequest: _sendFriendRequest,
       ),
@@ -142,14 +143,16 @@ class _MessengerShellState extends State<MessengerShell> {
       final userId = widget.session.profile.vId;
       final friendsFuture = _apiClient.listFriends(userId);
       final suggestionsFuture = _apiClient.listSuggestions(userId);
+      final profilesFuture = _apiClient.listProfiles(userId);
       final roomsFuture = _apiClient.listRooms(userId);
 
       final friends = await friendsFuture;
       final suggestions = await suggestionsFuture;
+      final profiles = await profilesFuture;
       final rooms = await roomsFuture;
 
       final profilesById = <int, ProfileSummary>{
-        for (final profile in <ProfileSummary>[widget.session.profile, ...friends, ...suggestions]) profile.vId: profile,
+        for (final profile in <ProfileSummary>[widget.session.profile, ...friends, ...suggestions, ...profiles]) profile.vId: profile,
       };
 
       final roomPreviews = await Future.wait(
@@ -169,6 +172,7 @@ class _MessengerShellState extends State<MessengerShell> {
       setState(() {
         _friends = friends;
         _suggestions = suggestions;
+        _profiles = profiles;
         _rooms = roomPreviews;
       });
     } catch (error) {
@@ -195,13 +199,6 @@ class _MessengerShellState extends State<MessengerShell> {
     });
 
     await _loadDashboard();
-  }
-
-  Future<List<ProfileSummary>> _searchProfiles(String query) {
-    return _apiClient.searchProfiles(
-      query: query,
-      excludeUserId: widget.session.profile.vId,
-    );
   }
 
   Future<_RoomPreview> _buildRoomPreview(ChatRoomSummary room, Map<int, ProfileSummary> profilesById) async {
@@ -473,10 +470,10 @@ class _PeopleTab extends StatefulWidget {
     required this.session,
     required this.friends,
     required this.suggestions,
+    required this.allProfiles,
     required this.isLoading,
     required this.errorMessage,
     required this.onRefresh,
-    required this.searchProfiles,
     required this.onStartConversation,
     required this.onSendFriendRequest,
   });
@@ -484,10 +481,10 @@ class _PeopleTab extends StatefulWidget {
   final AuthSession session;
   final List<ProfileSummary> friends;
   final List<ProfileSummary> suggestions;
+  final List<ProfileSummary> allProfiles;
   final bool isLoading;
   final String? errorMessage;
   final Future<void> Function() onRefresh;
-  final Future<List<ProfileSummary>> Function(String query) searchProfiles;
   final Future<void> Function(ProfileSummary profile) onStartConversation;
   final Future<void> Function(ProfileSummary profile) onSendFriendRequest;
 
@@ -498,10 +495,6 @@ class _PeopleTab extends StatefulWidget {
 class _PeopleTabState extends State<_PeopleTab> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  List<ProfileSummary> _searchResults = <ProfileSummary>[];
-  bool _isSearchingProfiles = false;
-  String? _searchErrorMessage;
-  int _searchRequestId = 0;
 
   @override
   void dispose() {
@@ -526,79 +519,9 @@ class _PeopleTabState extends State<_PeopleTab> {
 
   void _clearSearch() {
     _searchController.clear();
-    _searchRequestId++;
     setState(() {
       _searchQuery = '';
-      _searchResults = <ProfileSummary>[];
-      _isSearchingProfiles = false;
-      _searchErrorMessage = null;
     });
-  }
-
-  Set<int> _knownProfileIds() {
-    return <int>{
-      widget.session.profile.vId,
-      ...widget.friends.map((profile) => profile.vId),
-      ...widget.suggestions.map((profile) => profile.vId),
-    };
-  }
-
-  void _handleSearchChanged(String value) {
-    setState(() {
-      _searchQuery = value;
-    });
-
-    _runSearch(value);
-  }
-
-  Future<void> _runSearch(String value) async {
-    final normalizedQuery = value.trim();
-    if (normalizedQuery.isEmpty) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _searchResults = <ProfileSummary>[];
-        _isSearchingProfiles = false;
-        _searchErrorMessage = null;
-      });
-      return;
-    }
-
-    final requestId = ++_searchRequestId;
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isSearchingProfiles = true;
-      _searchErrorMessage = null;
-    });
-
-    try {
-      final results = await widget.searchProfiles(normalizedQuery);
-      if (!mounted || requestId != _searchRequestId) {
-        return;
-      }
-
-      setState(() {
-        _searchResults = results;
-        _isSearchingProfiles = false;
-      });
-    } catch (error) {
-      if (!mounted || requestId != _searchRequestId) {
-        return;
-      }
-
-      setState(() {
-        _searchResults = <ProfileSummary>[];
-        _isSearchingProfiles = false;
-        _searchErrorMessage = error is MessengerApiException
-            ? error.message
-            : 'Unable to search people.';
-      });
-    }
   }
 
   @override
@@ -610,16 +533,15 @@ class _PeopleTabState extends State<_PeopleTab> {
     final filteredSuggestions = widget.suggestions
         .where((profile) => _matchesSearchQuery(profile, normalizedQuery))
         .toList(growable: false);
+    final filteredDirectory = widget.allProfiles
+      .where((profile) => _matchesSearchQuery(profile, normalizedQuery))
+      .toList(growable: false);
     final isSearching = normalizedQuery.isNotEmpty;
-    final hasResults = filteredFriends.isNotEmpty || filteredSuggestions.isNotEmpty;
-    final discoveredPeople = _searchResults
-        .where((profile) => !_knownProfileIds().contains(profile.vId))
-        .toList(growable: false);
-    final hasDiscoveredPeople = discoveredPeople.isNotEmpty;
+    final friendIds = widget.friends.map((profile) => profile.vId).toSet();
 
     return _ShellScaffold(
       title: 'People',
-      subtitle: 'Search people, then request or chat.',
+      subtitle: 'Search users, then debug the full directory below.',
       session: widget.session,
       onRefresh: widget.onRefresh,
       isLoading: widget.isLoading,
@@ -634,11 +556,11 @@ class _PeopleTabState extends State<_PeopleTab> {
           ),
           child: TextField(
             controller: _searchController,
-            onChanged: _handleSearchChanged,
-            onSubmitted: _runSearch,
+            onChanged: (value) => setState(() => _searchQuery = value),
+            onSubmitted: (value) => setState(() => _searchQuery = value),
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
-                labelText: 'Search users',
+              labelText: 'Search users',
               hintText: 'Name, username, email, or phone',
               prefixIcon: const Icon(Icons.search_rounded),
               suffixIcon: _searchController.text.isEmpty
@@ -653,40 +575,7 @@ class _PeopleTabState extends State<_PeopleTab> {
           ),
         ),
         const SizedBox(height: 18),
-          if (_isSearchingProfiles)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 18),
-              child: LinearProgressIndicator(minHeight: 2),
-            ),
-          if (isSearching && _searchErrorMessage != null)
-            _EmptyStateCard(
-              icon: Icons.person_search_outlined,
-              title: 'Search failed',
-              subtitle: _searchErrorMessage!,
-              actionLabel: 'Retry',
-              onAction: () => _runSearch(_searchQuery),
-            )
-          else if (isSearching && hasDiscoveredPeople)
-            ...<Widget>[
-              const _SectionHeader(
-                title: 'Discover users',
-                subtitle: 'People outside your current friends and suggestions.',
-              ),
-              const SizedBox(height: 12),
-              ...discoveredPeople.map(
-                (profile) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _PersonTile(
-                    profile: profile,
-                    primaryLabel: 'Request',
-                    primaryIcon: Icons.person_add_alt_1,
-                    onPrimary: () => widget.onSendFriendRequest(profile),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-            ]
-          else if (isSearching && !hasResults)
+        if (isSearching && filteredDirectory.isEmpty)
           _EmptyStateCard(
             icon: Icons.person_search_outlined,
             title: 'No matching people',
@@ -695,6 +584,40 @@ class _PeopleTabState extends State<_PeopleTab> {
             onAction: _clearSearch,
           )
         else ...<Widget>[
+          const _SectionHeader(
+            title: 'All users',
+            subtitle: 'Every user except you, pulled from the backend for debugging.',
+          ),
+          const SizedBox(height: 12),
+          if (filteredDirectory.isEmpty)
+            _EmptyStateCard(
+              icon: Icons.people_outline,
+              title: 'No users loaded yet',
+              subtitle: 'Refresh to load the user directory from the backend.',
+              actionLabel: 'Refresh',
+              onAction: () => widget.onRefresh(),
+            )
+          else
+            ...filteredDirectory.map(
+              (profile) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _PersonTile(
+                  profile: profile,
+                  primaryLabel: friendIds.contains(profile.vId) ? 'Chat' : 'Request',
+                  primaryIcon: friendIds.contains(profile.vId)
+                      ? Icons.message_outlined
+                      : Icons.person_add_alt_1,
+                  onPrimary: () {
+                    if (friendIds.contains(profile.vId)) {
+                      widget.onStartConversation(profile);
+                    } else {
+                      widget.onSendFriendRequest(profile);
+                    }
+                  },
+                ),
+              ),
+            ),
+          const SizedBox(height: 18),
           const _SectionHeader(
             title: 'Friends',
             subtitle: 'Accepted connections are ready for private chats.',
@@ -722,25 +645,6 @@ class _PeopleTabState extends State<_PeopleTab> {
                 ),
               ),
             ),
-          if (isSearching && hasDiscoveredPeople) ...<Widget>[
-            const SizedBox(height: 18),
-            const _SectionHeader(
-              title: 'Discover users',
-              subtitle: 'People outside your current friends and suggestions.',
-            ),
-            const SizedBox(height: 12),
-            ...discoveredPeople.map(
-              (profile) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _PersonTile(
-                  profile: profile,
-                  primaryLabel: 'Request',
-                  primaryIcon: Icons.person_add_alt_1,
-                  onPrimary: () => widget.onSendFriendRequest(profile),
-                ),
-              ),
-            ),
-          ],
           const SizedBox(height: 18),
           const _SectionHeader(
             title: 'Suggestions',

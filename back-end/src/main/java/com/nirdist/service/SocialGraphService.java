@@ -3,6 +3,7 @@ package com.nirdist.service;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -221,6 +222,22 @@ public class SocialGraphService {
         return new ArrayList<>(suggestionsById.values());
     }
 
+    public List<ProfileResponse> listProfiles(Long excludeUserId) {
+        Long normalizedExcludeUserId = excludeUserId == null ? null : requirePositiveId(excludeUserId, "excludeUserId");
+        if (normalizedExcludeUserId != null) {
+            getProfileOrThrow(normalizedExcludeUserId);
+        }
+
+        return profileRepository.findAll().stream()
+                .filter(profile -> normalizedExcludeUserId == null || !Objects.equals(profile.getVId(), normalizedExcludeUserId))
+                .sorted(Comparator
+                        .comparing(Profile::getDisplayName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                        .thenComparing(Profile::getUsername, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                        .thenComparing(Profile::getVId))
+                .map(this::toProfileResponse)
+                .toList();
+    }
+
     public List<ProfileResponse> searchProfiles(String query, Long excludeUserId) {
         String normalizedQuery = trimToNull(query);
         if (normalizedQuery == null) {
@@ -259,7 +276,7 @@ public class SocialGraphService {
 
     public void requireRoomParticipantsAreFriends(Long creatorVId, Collection<Long> participantIds, String roomType) {
         Long normalizedCreatorId = requirePositiveId(creatorVId, "createdBy");
-        Profile creator = getProfileOrThrow(normalizedCreatorId);
+        getProfileOrThrow(normalizedCreatorId);
 
         LinkedHashSet<Long> normalizedParticipantIds = new LinkedHashSet<>();
         if (participantIds != null) {
@@ -276,16 +293,18 @@ public class SocialGraphService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "roomType is required");
         }
 
-        if ("private".equals(roomType)) {
-            if (normalizedParticipantIds.size() != 2) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "private rooms must contain exactly two users");
+        switch (roomType.trim().toLowerCase()) {
+            case "private" -> {
+                if (normalizedParticipantIds.size() != 2) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "private rooms must contain exactly two users");
+                }
             }
-        } else if ("group".equals(roomType)) {
-            if (normalizedParticipantIds.size() < 3) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "group rooms must contain at least three users");
+            case "group" -> {
+                if (normalizedParticipantIds.size() < 3) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "group rooms must contain at least three users");
+                }
             }
-        } else {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "roomType must be private or group");
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "roomType must be private or group");
         }
 
         for (Long participantId : normalizedParticipantIds) {

@@ -13,8 +13,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.validation.Valid;
-
 import com.nirdist.dto.CommunicationPermissionResponse;
 import com.nirdist.dto.ContactSyncRequest;
 import com.nirdist.dto.ContactSyncResponse;
@@ -23,6 +21,8 @@ import com.nirdist.dto.FriendRequestCreateRequest;
 import com.nirdist.dto.FriendRequestResponse;
 import com.nirdist.dto.ProfileResponse;
 import com.nirdist.service.SocialGraphService;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/social")
@@ -63,6 +63,11 @@ public class SocialController {
     @GetMapping("/suggestions/{userId}")
     public List<ProfileResponse> getSuggestions(@PathVariable Long userId) {
         return socialGraphService.getSuggestions(userId);
+    }
+
+    @GetMapping("/profiles")
+    public List<ProfileResponse> listProfiles(@RequestParam(required = false) Long excludeUserId) {
+        return socialGraphService.listProfiles(excludeUserId);
     }
 
     @GetMapping("/profiles/search")
