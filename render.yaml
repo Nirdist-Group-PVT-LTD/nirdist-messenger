@@ -5,8 +5,8 @@ services:
     plan: free
     region: oregon
     rootDir: back-end
-    dockerfilePath: back-end/Dockerfile
-    dockerContext: back-end
+    dockerfilePath: Dockerfile
+    dockerContext: .
     healthCheckPath: /api/health
     envVars:
       - key: JDBC_DATABASE_URL
