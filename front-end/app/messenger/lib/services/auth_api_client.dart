@@ -21,7 +21,7 @@ class AuthApiClient {
     }
 
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return normalizeApiBaseUrl('https://nirdist-backend.onrender.com');
+      return normalizeApiBaseUrl('https://nirdist-backend-uctd.onrender.com');
     }
 
     return switch (defaultTargetPlatform) {
