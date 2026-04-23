@@ -1,0 +1,32 @@
+# Workspace noise and the old reference checkout.
+/refrence/
+**/.vscode/
+**/.idea/
+*.iml
+*.log
+.DS_Store
+
+# Java and Android build output.
+**/target/
+**/.gradle/
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+
+# Flutter and Dart build output.
+**/.dart_tool/
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.pub/
+**/build/
+**/coverage/
+**/flutter/ephemeral/
+**/doc/api/
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+**/ios/Flutter/.last_build_id
+app.*.symbols
+app.*.map.json

@@ -1,0 +1,567 @@
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);color:var(--color-text-primary);font-size:14px}
+.tabs{display:flex;gap:4px;padding:16px 16px 0;border-bottom:0.5px solid var(--color-border-tertiary);overflow-x:auto;flex-wrap:nowrap}
+.tab{padding:8px 14px;border-radius:8px 8px 0 0;border:0.5px solid transparent;cursor:pointer;white-space:nowrap;font-size:13px;color:var(--color-text-secondary);background:transparent;transition:all .15s}
+.tab.active{background:var(--color-background-primary);border-color:var(--color-border-tertiary);border-bottom-color:var(--color-background-primary);color:var(--color-text-primary);font-weight:500}
+.panel{display:none;padding:20px 16px}
+.panel.active{display:block}
+.section-title{font-size:12px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
+.card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+.card-title{font-weight:500;font-size:14px;margin-bottom:4px}
+.card-sub{font-size:12px;color:var(--color-text-secondary);line-height:1.6}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;margin-right:4px;margin-top:4px}
+.badge-blue{background:var(--color-background-info);color:var(--color-text-info)}
+.badge-green{background:var(--color-background-success);color:var(--color-text-success)}
+.badge-amber{background:var(--color-background-warning);color:var(--color-text-warning)}
+.badge-red{background:var(--color-background-danger);color:var(--color-text-danger)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.mono{font-family:var(--font-mono);font-size:12px;background:var(--color-background-secondary);padding:10px 12px;border-radius:8px;border:0.5px solid var(--color-border-tertiary);line-height:1.8;white-space:pre-wrap;margin-top:8px}
+.phase{border-left:3px solid var(--color-border-secondary);padding-left:14px;margin-bottom:16px}
+.phase.p1{border-color:#1D9E75}
+.phase.p2{border-color:#534AB7}
+.phase.p3{border-color:#D85A30}
+.phase.p4{border-color:#378ADD}
+.phase-label{font-size:11px;font-weight:500;margin-bottom:4px}
+.phase.p1 .phase-label{color:#1D9E75}
+.phase.p2 .phase-label{color:#534AB7}
+.phase.p3 .phase-label{color:#D85A30}
+.phase.p4 .phase-label{color:#378ADD}
+.phase-title{font-weight:500;font-size:14px;margin-bottom:6px}
+.row{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--color-border-secondary);margin-top:6px;flex-shrink:0}
+.stack-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
+.stack-row:last-child{border-bottom:none}
+.stack-label{font-size:13px;color:var(--color-text-secondary)}
+.stack-val{font-weight:500;font-size:13px}
+.endpoint{font-family:var(--font-mono);font-size:12px;padding:4px 8px;border-radius:6px;display:inline-block;margin-right:6px}
+.ep-get{background:#EAF3DE;color:#3B6D11}
+.ep-post{background:#E6F1FB;color:#185FA5}
+.ep-ws{background:#EEEDFE;color:#534AB7}
+.ep-del{background:#FCEBEB;color:#A32D2D}
+.ep-put{background:#FAEEDA;color:#854F0B}
+table.schema{width:100%;border-collapse:collapse;font-size:12px}
+table.schema th{text-align:left;color:var(--color-text-secondary);font-weight:500;padding:6px 8px;border-bottom:0.5px solid var(--color-border-tertiary)}
+table.schema td{padding:5px 8px;border-bottom:0.5px solid var(--color-border-tertiary);font-family:var(--font-mono)}
+table.schema tr:last-child td{border-bottom:none}
+.arch-box{border:0.5px solid var(--color-border-tertiary);border-radius:10px;padding:10px 12px;text-align:center;font-size:12px;font-weight:500}
+.arch-box .icon{font-size:20px;display:block;margin-bottom:4px}
+.arch-arrow{display:flex;align-items:center;justify-content:center;color:var(--color-text-tertiary);font-size:18px}
+.flow-row{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+</style>
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('overview')">Overview</div>
+  <div class="tab" onclick="switchTab('schema')">Database</div>
+  <div class="tab" onclick="switchTab('arch')">Architecture</div>
+  <div class="tab" onclick="switchTab('api')">API Design</div>
+  <div class="tab" onclick="switchTab('infra')">Infra & DevOps</div>
+  <div class="tab" onclick="switchTab('docs')">Documentation</div>
+  <div class="tab" onclick="switchTab('roadmap')">Roadmap</div>
+</div>
+
+<div id="tab-overview" class="panel active">
+  <div class="section-title">Project identity</div>
+  <div class="card">
+    <div class="card-title">Nirdist Messenger</div>
+    <div class="card-sub">Android-first messaging platform with planned Flutter Web, iOS, and desktop support. Spring Boot API, Render PostgreSQL, Render disk-backed media storage, Firebase OTP phone verification, JWT sessions, and WebRTC calls.</div>
+    <div style="margin-top:10px">
+      <span class="badge badge-blue">nirdist.com.np</span>
+      <span class="badge badge-blue">api.nirdist.com.np</span>
+      <span class="badge badge-green">Flutter</span>
+      <span class="badge badge-green">Spring Boot</span>
+      <span class="badge badge-amber">Render PostgreSQL</span>
+      <span class="badge badge-amber">Firebase OTP</span>
+      <span class="badge badge-amber">Docker</span>
+      <span class="badge badge-red">Render.com</span>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:16px">Tech stack</div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Frontend</div>
+      <div class="stack-row"><span class="stack-label">Framework</span><span class="stack-val">Flutter 3.x</span></div>
+      <div class="stack-row"><span class="stack-label">State</span><span class="stack-val">Riverpod / Bloc</span></div>
+      <div class="stack-row"><span class="stack-label">Realtime</span><span class="stack-val">STOMP / WebSocket</span></div>
+      <div class="stack-row"><span class="stack-label">Calls</span><span class="stack-val">flutter_webrtc</span></div>
+      <div class="stack-row"><span class="stack-label">Auth</span><span class="stack-val">Firebase phone OTP + JWT + Secure Storage</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Backend</div>
+      <div class="stack-row"><span class="stack-label">Framework</span><span class="stack-val">Spring Boot 3.x</span></div>
+      <div class="stack-row"><span class="stack-label">Language</span><span class="stack-val">Java 21 / Kotlin</span></div>
+      <div class="stack-row"><span class="stack-label">DB</span><span class="stack-val">PostgreSQL 16</span></div>
+      <div class="stack-row"><span class="stack-label">ORM</span><span class="stack-val">JPA / Hibernate</span></div>
+      <div class="stack-row"><span class="stack-label">Auth</span><span class="stack-val">Spring Security + Firebase Admin SDK + JWT</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Infra</div>
+      <div class="stack-row"><span class="stack-label">Hosting</span><span class="stack-val">Render.com</span></div>
+      <div class="stack-row"><span class="stack-label">CDN/DNS</span><span class="stack-val">Cloudflare</span></div>
+      <div class="stack-row"><span class="stack-label">Container</span><span class="stack-val">Docker + Compose</span></div>
+      <div class="stack-row"><span class="stack-label">Storage</span><span class="stack-val">Render Persistent Disk + future storage adapter</span></div>
+      <div class="stack-row"><span class="stack-label">TURN</span><span class="stack-val">Cloudflare TURN / coturn</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Platforms (timeline)</div>
+      <div class="stack-row"><span class="stack-label" style="color:#1D9E75">Phase 1</span><span class="stack-val">Android</span></div>
+      <div class="stack-row"><span class="stack-label" style="color:#534AB7">Phase 2</span><span class="stack-val">Web (Flutter Web)</span></div>
+      <div class="stack-row"><span class="stack-label" style="color:#D85A30">Phase 3</span><span class="stack-val">iOS</span></div>
+      <div class="stack-row"><span class="stack-label" style="color:#378ADD">Phase 4</span><span class="stack-val">Desktop (Windows/Mac)</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="tab-schema" class="panel">
+  <div class="section-title">Revised schema — PostgreSQL (migrated from MySQL)</div>
+
+  <div class="card">
+    <div class="card-title">Key MySQL → PostgreSQL changes</div>
+    <div class="card-sub">
+      • <code>BIGINT UNSIGNED AUTO_INCREMENT</code> → <code>BIGSERIAL</code> or <code>BIGINT GENERATED ALWAYS AS IDENTITY</code><br>
+      • <code>TINYINT</code> → <code>SMALLINT</code> or <code>BOOLEAN</code><br>
+      • <code>ENUM(...)</code> → PostgreSQL <code>ENUM type</code> or <code>VARCHAR + CHECK constraint</code><br>
+      • <code>TEXT</code> for JSON arrays → <code>JSONB</code> (indexable, queryable)<br>
+      • Media/files stay as <code>TEXT</code> paths or URLs, not database blobs; keep the storage layer abstract for Render disk now and S3 later<br>
+      • Add <code>phone_number</code>, <code>firebase_uid</code>, and <code>phone_verified_at</code> for Firebase OTP verification<br>
+      • Remove <code>SET FOREIGN_KEY_CHECKS = 0</code> — not needed in PostgreSQL<br>
+      • Story/Note expiry → handle with <code>pg_cron</code> or app scheduler (Spring <code>@Scheduled</code>)
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:10px">
+    <div class="card-title">profile — anchor table</div>
+    <table class="schema">
+      <tr><th>Column</th><th>Type</th><th>Notes</th></tr>
+      <tr><td>v_id</td><td>BIGSERIAL PK</td><td>User identifier</td></tr>
+      <tr><td>username</td><td>VARCHAR(50) UNIQUE</td><td>Add this — essential</td></tr>
+      <tr><td>email</td><td>VARCHAR(255) UNIQUE</td><td>Add this — for auth</td></tr>
+      <tr><td>password_hash</td><td>TEXT</td><td>Optional if email/password login is added later</td></tr>
+      <tr><td>avatar_url</td><td>TEXT</td><td>Render disk path or future object storage URL</td></tr>
+      <tr><td>phone_number</td><td>VARCHAR(32) UNIQUE</td><td>Primary phone identity for OTP</td></tr>
+      <tr><td>firebase_uid</td><td>VARCHAR(255) UNIQUE</td><td>Firebase verified subject</td></tr>
+      <tr><td>phone_verified_at</td><td>TIMESTAMPTZ</td><td>Set after OTP success</td></tr>
+      <tr><td>bio</td><td>TEXT</td><td>Replace v_bio_id reference</td></tr>
+      <tr><td>created_at</td><td>TIMESTAMPTZ</td><td>Use timezone-aware</td></tr>
+    </table>
+  </div>
+
+  <div class="card" style="margin-top:10px">
+    <div class="card-title">Add: auth verification fields (Firebase OTP)</div>
+    <div class="mono">ALTER TABLE profile ADD COLUMN phone_number VARCHAR(32) UNIQUE;
+ALTER TABLE profile ADD COLUMN firebase_uid VARCHAR(255) UNIQUE;
+ALTER TABLE profile ADD COLUMN phone_verified_at TIMESTAMPTZ;
+-- Keep password_hash nullable if email/password login is added later</div>
+  </div>
+
+  <div class="grid2" style="margin-top:10px">
+    <div class="card">
+      <div class="card-title">user_story</div>
+      <table class="schema">
+        <tr><th>Column</th><th>Type</th></tr>
+        <tr><td>u_s_id</td><td>BIGSERIAL PK</td></tr>
+        <tr><td>v_id</td><td>BIGINT FK → profile</td></tr>
+        <tr><td>u_s_tags</td><td>JSONB (was TEXT)</td></tr>
+        <tr><td>u_s_mention</td><td>JSONB (was TEXT)</td></tr>
+        <tr><td>u_s_media_url</td><td>TEXT</td></tr>
+        <tr><td>u_s_media_type</td><td>VARCHAR + CHECK</td></tr>
+        <tr><td>u_s_expiry_time</td><td>TIMESTAMPTZ</td></tr>
+        <tr><td>u_s_status</td><td>BOOLEAN DEFAULT true</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">chat_message (enhanced)</div>
+      <table class="schema">
+        <tr><th>Column</th><th>Type</th></tr>
+        <tr><td>message_id</td><td>BIGSERIAL PK</td></tr>
+        <tr><td>room_id</td><td>BIGINT FK → chat_room</td></tr>
+        <tr><td>sender_v_id</td><td>BIGINT FK → profile</td></tr>
+        <tr><td>message_text</td><td>TEXT</td></tr>
+        <tr><td>media_url</td><td>TEXT NULL</td></tr>
+        <tr><td>reply_to_id</td><td>BIGINT NULL (add)</td></tr>
+        <tr><td>is_deleted</td><td>BOOLEAN DEFAULT false</td></tr>
+        <tr><td>created_at</td><td>TIMESTAMPTZ</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:10px">
+    <div class="card-title">Add: notification table (essential for mobile)</div>
+    <div class="mono">CREATE TABLE notification (
+  notif_id    BIGSERIAL PRIMARY KEY,
+  v_id        BIGINT NOT NULL REFERENCES profile(v_id) ON DELETE CASCADE,
+  actor_v_id  BIGINT REFERENCES profile(v_id),
+  notif_type  VARCHAR(50) NOT NULL,  -- 'message','reaction','comment','follow'
+  target_type VARCHAR(50),
+  target_id   BIGINT,
+  is_read     BOOLEAN DEFAULT false,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);</div>
+  </div>
+
+  <div class="card" style="margin-top:10px">
+    <div class="card-title">Add: follow / friend table</div>
+    <div class="mono">CREATE TABLE follow (
+  follower_id BIGINT REFERENCES profile(v_id) ON DELETE CASCADE,
+  followee_id BIGINT REFERENCES profile(v_id) ON DELETE CASCADE,
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (follower_id, followee_id)
+);</div>
+  </div>
+</div>
+
+<div id="tab-arch" class="panel">
+  <div class="section-title">System architecture</div>
+
+  <div class="card">
+    <div class="card-title">Request flow</div>
+    <div class="flow-row" style="margin-top:8px">
+      <div class="arch-box" style="background:var(--color-background-secondary);min-width:80px"><span class="icon">📱</span>Flutter App</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box" style="background:var(--color-background-info);min-width:90px"><span class="icon" style="font-size:16px">☁</span>Cloudflare<br><small style="font-weight:400;font-size:11px">CDN + DDoS + SSL</small></div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box" style="background:var(--color-background-secondary);min-width:90px"><span class="icon" style="font-size:16px">🔀</span>Render.com<br><small style="font-weight:400;font-size:11px">api.nirdist.com.np</small></div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box" style="background:var(--color-background-secondary);min-width:80px"><span class="icon" style="font-size:16px">⚙️</span>Spring Boot<br><small style="font-weight:400;font-size:11px">JWT verify</small></div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box" style="background:var(--color-background-secondary);min-width:80px"><span class="icon" style="font-size:16px">🐘</span>PostgreSQL<br><small style="font-weight:400;font-size:11px">Render managed</small></div>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:10px">
+    <div class="card">
+      <div class="card-title">WebRTC call flow</div>
+      <div class="card-sub" style="margin-top:6px;line-height:2">
+        1. Caller sends offer via <strong>WebSocket (STOMP)</strong><br>
+        2. Signaling server relays to callee<br>
+        3. ICE candidates exchanged<br>
+        4. STUN: <code>stun.cloudflare.com</code><br>
+        5. TURN fallback: <code>coturn</code> on Render or Cloudflare TURN<br>
+        6. Peer-to-peer media established<br>
+        7. Call events logged to DB
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Real-time messaging flow</div>
+      <div class="card-sub" style="margin-top:6px;line-height:2">
+        1. Flutter connects via <strong>STOMP over WebSocket</strong><br>
+        2. JWT verified on handshake<br>
+        3. Subscribe to <code>/topic/room.{id}</code><br>
+        4. Send to <code>/app/chat.send</code><br>
+        5. Spring broadcasts to room topic<br>
+        6. Persisted to <code>chat_message</code> table<br>
+        7. Push notification via FCM
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">JWT auth flow</div>
+      <div class="card-sub" style="margin-top:6px;line-height:2">
+        1. Login → Spring Security validates<br>
+        2. Returns <strong>Access Token</strong> (15 min)<br>
+        3. Returns <strong>Refresh Token</strong> (7 days)<br>
+        4. Flutter stores in <code>flutter_secure_storage</code><br>
+        5. Interceptor auto-refreshes on 401<br>
+        6. Logout → revoke refresh token (DB)
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Media upload flow</div>
+      <div class="card-sub" style="margin-top:6px;line-height:2">
+          1. App requests an upload session from the API<br>
+          2. App uploads media to the Spring Boot media endpoint<br>
+          3. API writes the file to Render persistent disk and stores metadata in PostgreSQL<br>
+          4. Stories expire via <code>@Scheduled</code> cleanup<br>
+          5. Storage adapter stays abstract for a future S3-compatible swap<br>
+          6. API serves media through authorized download URLs
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:10px">
+    <div class="card-title">Spring Boot module structure</div>
+    <div class="mono">src/main/java/com/nirdist/
+├── auth/          # Firebase token exchange, OTP link, JWT, refresh
+├── profile/       # User profile CRUD
+├── chat/          # Rooms, participants, messages (WebSocket)
+├── story/         # Stories + expiry scheduler
+├── note/          # Notes CRUD
+├── reaction/      # Polymorphic reactions
+├── comment/       # Nested comments
+├── notification/  # FCM push + in-app
+├── follow/        # Follow/unfollow, feed
+├── webrtc/        # Signaling (offer/answer/ICE relay)
+├── media/         # Render disk uploads + future S3 adapter
+└── common/        # Exceptions, DTOs, security config</div>
+  </div>
+</div>
+
+<div id="tab-api" class="panel">
+  <div class="section-title">REST API endpoints — api.nirdist.com.np/v1</div>
+
+  <div class="card">
+    <div class="card-title">Auth</div>
+    <div style="margin-top:8px;line-height:2.2">
+      <span class="endpoint ep-post">POST</span><code>/auth/firebase/exchange</code> — verify Firebase ID token and issue app JWT<br>
+      <span class="endpoint ep-post">POST</span><code>/auth/refresh</code><br>
+      <span class="endpoint ep-post">POST</span><code>/auth/logout</code><br>
+      <span class="endpoint ep-post">POST</span><code>/auth/phone/link</code> — optional account linking
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Profile</div>
+    <div style="margin-top:8px;line-height:2.2">
+      <span class="endpoint ep-get">GET</span><code>/profile/{v_id}</code><br>
+      <span class="endpoint ep-put">PUT</span><code>/profile/me</code> — update bio, avatar<br>
+      <span class="endpoint ep-get">GET</span><code>/profile/search?q=username</code><br>
+      <span class="endpoint ep-post">POST</span><code>/follow/{v_id}</code><br>
+      <span class="endpoint ep-del">DEL</span><code>/follow/{v_id}</code>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Chat</div>
+    <div style="margin-top:8px;line-height:2.2">
+      <span class="endpoint ep-post">POST</span><code>/chat/rooms</code> — create room (private/group)<br>
+      <span class="endpoint ep-get">GET</span><code>/chat/rooms</code> — my rooms<br>
+      <span class="endpoint ep-get">GET</span><code>/chat/rooms/{id}/messages</code> — paginated history<br>
+      <span class="endpoint ep-post">POST</span><code>/chat/rooms/{id}/participants</code><br>
+      <span class="endpoint ep-ws">WS</span><code>/ws</code> — STOMP endpoint<br>
+      <span class="endpoint ep-ws">WS</span><code>/topic/room.{id}</code> — subscribe<br>
+      <span class="endpoint ep-ws">WS</span><code>/app/chat.send</code> — publish message
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Stories</div>
+      <div style="margin-top:8px;line-height:2.2">
+        <span class="endpoint ep-post">POST</span><code>/stories</code><br>
+        <span class="endpoint ep-get">GET</span><code>/stories/feed</code><br>
+        <span class="endpoint ep-del">DEL</span><code>/stories/{id}</code><br>
+        <span class="endpoint ep-post">POST</span><code>/stories/{id}/react</code>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Notes</div>
+      <div style="margin-top:8px;line-height:2.2">
+        <span class="endpoint ep-post">POST</span><code>/notes</code><br>
+        <span class="endpoint ep-get">GET</span><code>/notes/feed</code><br>
+        <span class="endpoint ep-put">PUT</span><code>/notes/{id}</code><br>
+        <span class="endpoint ep-del">DEL</span><code>/notes/{id}</code>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Reactions & Comments</div>
+      <div style="margin-top:8px;line-height:2.2">
+        <span class="endpoint ep-post">POST</span><code>/reactions</code><br>
+        <span class="endpoint ep-del">DEL</span><code>/reactions/{id}</code><br>
+        <span class="endpoint ep-post">POST</span><code>/comments</code><br>
+        <span class="endpoint ep-get">GET</span><code>/comments?target_type=&target_id=</code>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">WebRTC Signaling</div>
+      <div style="margin-top:8px;line-height:2.2">
+        <span class="endpoint ep-ws">WS</span><code>/app/webrtc.offer</code><br>
+        <span class="endpoint ep-ws">WS</span><code>/app/webrtc.answer</code><br>
+        <span class="endpoint ep-ws">WS</span><code>/app/webrtc.ice</code><br>
+        <span class="endpoint ep-post">POST</span><code>/media/upload</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tab-infra" class="panel">
+  <div class="section-title">Infrastructure & DevOps</div>
+
+  <div class="card">
+    <div class="card-title">Render.com services</div>
+    <div class="stack-row"><span class="stack-label">Web Service</span><span class="stack-val">Spring Boot Docker container</span></div>
+    <div class="stack-row"><span class="stack-label">Managed PostgreSQL</span><span class="stack-val">Render PostgreSQL (current production database)</span></div>
+    <div class="stack-row"><span class="stack-label">Background Worker</span><span class="stack-val">Story expiry scheduler (same container)</span></div>
+    <div class="stack-row"><span class="stack-label">Redis (optional)</span><span class="stack-val">Render Redis — for caching + rate limiting</span></div>
+    <div class="stack-row"><span class="stack-label">Auto-Deploy</span><span class="stack-val">GitHub → Render webhook on push to main</span></div>
+  </div>
+
+  <div class="card" style="margin-top:10px">
+    <div class="card-title">Cloudflare setup</div>
+    <div class="stack-row"><span class="stack-label">nirdist.com.np</span><span class="stack-val">A record → Render IP (proxied)</span></div>
+    <div class="stack-row"><span class="stack-label">api.nirdist.com.np</span><span class="stack-val">CNAME → Render service URL (proxied)</span></div>
+    <div class="stack-row"><span class="stack-label">Media storage</span><span class="stack-val">Render persistent disk now, object storage later</span></div>
+    <div class="stack-row"><span class="stack-label">Firebase OTP</span><span class="stack-val">Free plan for phone verification + token exchange</span></div>
+    <div class="stack-row"><span class="stack-label">SSL</span><span class="stack-val">Full (strict) — Cloudflare origin cert</span></div>
+    <div class="stack-row"><span class="stack-label">WebSocket</span><span class="stack-val">Enable WebSockets in Cloudflare Network tab</span></div>
+    <div class="stack-row"><span class="stack-label">TURN</span><span class="stack-val">Cloudflare Calls TURN or self-hosted coturn</span></div>
+  </div>
+
+  <div class="card" style="margin-top:10px">
+    <div class="card-title">Docker Compose (local dev)</div>
+    <div class="mono">services:
+  app:
+    build: .
+    ports: ["8080:8080"]
+    environment:
+      - DB_URL=jdbc:postgresql://db:5432/nirdist
+      - JWT_SECRET=${JWT_SECRET}
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - FIREBASE_SERVICE_ACCOUNT_JSON=${FIREBASE_SERVICE_ACCOUNT_JSON}
+      - MEDIA_STORAGE_PATH=/var/lib/nirdist/media
+    volumes:
+      - media:/var/lib/nirdist/media
+    depends_on: [db]
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nirdist
+      POSTGRES_USER: nirdist
+      POSTGRES_PASSWORD: ${DB_PASS}
+    volumes: [pgdata:/var/lib/postgresql/data]
+
+volumes:
+  pgdata:
+  media:</div>
+  </div>
+
+  <div class="card" style="margin-top:10px">
+    <div class="card-title">Future-proofing checklist</div>
+    <div class="card-sub" style="line-height:2.2">
+      ✓ API versioning at <code>/v1/</code> — add <code>/v2/</code> without breaking old clients<br>
+      ✓ Flutter flavors: <code>dev</code>, <code>staging</code>, <code>prod</code> — different API base URLs<br>
+      ✓ Feature flags table in DB — toggle features without deploy<br>
+      ✓ Database migrations via <strong>Flyway</strong> (<code>V1__init.sql</code>, <code>V2__add_follow.sql</code>…)<br>
+      ✓ Storage adapter abstraction: local/Render disk now, S3-compatible later without client changes<br>
+      ✓ Firebase OTP flow: client verifies phone with Firebase, backend only trusts Firebase ID tokens<br>
+      ✓ Sentry for error tracking (Flutter + Spring Boot SDKs)<br>
+      ✓ OpenAPI / Swagger at <code>/api-docs</code> for team reference<br>
+      ✓ GitHub Actions CI: lint → test → Docker build → push to Render
+    </div>
+  </div>
+</div>
+
+<div id="tab-docs" class="panel">
+  <div class="section-title">Documentation plan</div>
+
+  <div class="card">
+    <div class="card-title">Documentation goals</div>
+    <div class="card-sub" style="margin-top:6px;line-height:2">
+      Keep the repo self-serve for future Android, web, iOS, and desktop contributors.<br>
+      Document the stack once, then keep API, database, deployment, Firebase OTP, and WebRTC docs in sync with the code.<br>
+      Treat Render PostgreSQL and Render disk as the current production baseline, with an upgrade path to object storage later.
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:10px">
+    <div class="card">
+      <div class="card-title">Docs to create</div>
+      <div class="row"><div class="dot"></div><div><strong>README.md</strong> - project overview, setup, environment variables, run commands</div></div>
+      <div class="row"><div class="dot"></div><div><strong>docs/architecture.md</strong> - client/server/data flow, JWT, Firebase OTP, WebRTC</div></div>
+      <div class="row"><div class="dot"></div><div><strong>docs/database.md</strong> - schema, migrations, indexes, retention rules</div></div>
+      <div class="row"><div class="dot"></div><div><strong>docs/api.md</strong> - REST + WebSocket contracts, examples, errors</div></div>
+      <div class="row"><div class="dot"></div><div><strong>docs/deployment.md</strong> - Render, Docker, domains, SSL, env config</div></div>
+      <div class="row"><div class="dot"></div><div><strong>docs/firebase-otp.md</strong> - Firebase phone auth setup and token exchange</div></div>
+      <div class="row"><div class="dot"></div><div><strong>docs/webrtc.md</strong> - signaling, STUN/TURN, call states</div></div>
+      <div class="row"><div class="dot"></div><div><strong>docs/ops.md</strong> - backups, monitoring, incident steps</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Writing order</div>
+      <div class="row"><div class="dot"></div><div>1. README with local setup and environment variables</div></div>
+      <div class="row"><div class="dot"></div><div>2. Architecture and database docs before implementation starts</div></div>
+      <div class="row"><div class="dot"></div><div>3. API and WebSocket contracts as endpoints stabilize</div></div>
+      <div class="row"><div class="dot"></div><div>4. Deployment and Firebase OTP docs during infra setup</div></div>
+      <div class="row"><div class="dot"></div><div>5. Runbooks after monitoring, backups, and release flow are known</div></div>
+      <div class="row"><div class="dot"></div><div>6. Keep changelog and release notes updated for each milestone</div></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:10px">
+    <div class="card-title">Implementation todo list</div>
+    <div class="grid2" style="margin-top:8px">
+      <div>
+        <div class="badge badge-red">P0</div> foundation
+        <div class="row"><div class="dot"></div><div>Rewrite the MySQL schema for PostgreSQL and Flyway</div></div>
+        <div class="row"><div class="dot"></div><div>Add phone number and Firebase UID fields for OTP verification</div></div>
+        <div class="row"><div class="dot"></div><div>Build Spring Boot auth flow for Firebase token exchange and JWT</div></div>
+        <div class="row"><div class="dot"></div><div>Set up Flutter login, profile, and secure storage</div></div>
+      </div>
+      <div>
+        <div class="badge badge-amber">P1</div> product
+        <div class="row"><div class="dot"></div><div>Implement chat rooms, STOMP WebSocket, and message persistence</div></div>
+        <div class="row"><div class="dot"></div><div>Implement media storage on Render disk with a future adapter</div></div>
+        <div class="row"><div class="dot"></div><div>Document API, database, deployment, and WebRTC flows</div></div>
+        <div class="row"><div class="dot"></div><div>Ship Android MVP, then add web and iOS builds</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:10px">
+    <div class="card-title">Documentation done when</div>
+    <div class="row"><div class="dot"></div><div>A new developer can clone the repo, set env vars, and run the app in under 30 minutes</div></div>
+    <div class="row"><div class="dot"></div><div>API contracts are written for all client-facing endpoints and WebSocket topics</div></div>
+    <div class="row"><div class="dot"></div><div>Deployment steps work for local Docker and Render production without tribal knowledge</div></div>
+  </div>
+</div>
+
+<div id="tab-roadmap" class="panel">
+  <div class="section-title">Development roadmap</div>
+
+  <div class="phase p1">
+    <div class="phase-label">Phase 1 — Foundation (Weeks 1–6)</div>
+    <div class="phase-title">Android MVP</div>
+    <div class="row"><div class="dot"></div><div>PostgreSQL schema setup with Flyway migrations</div></div>
+    <div class="row"><div class="dot"></div><div>Spring Boot: Firebase OTP exchange, JWT/refresh, Profile CRUD</div></div>
+    <div class="row"><div class="dot"></div><div>Flutter: Login, profile screen, secure token storage</div></div>
+    <div class="row"><div class="dot"></div><div>Real-time chat (STOMP WebSocket) — private rooms</div></div>
+    <div class="row"><div class="dot"></div><div>Media upload on Render disk with a storage adapter for future object storage</div></div>
+    <div class="row"><div class="dot"></div><div>Firebase phone OTP verification using the free plan</div></div>
+    <div class="row"><div class="dot"></div><div>Docker Compose local dev, deploy to Render</div></div>
+    <div class="row"><div class="dot"></div><div>Cloudflare DNS + SSL setup for api.nirdist.com.np</div></div>
+  </div>
+
+  <div class="phase p2">
+    <div class="phase-label">Phase 2 — Social features (Weeks 7–12)</div>
+    <div class="phase-title">Stories, Notes, Reactions</div>
+    <div class="row"><div class="dot"></div><div>Stories with 24h expiry scheduler, media playback</div></div>
+    <div class="row"><div class="dot"></div><div>Notes (text/image/video posts with comments)</div></div>
+    <div class="row"><div class="dot"></div><div>Polymorphic reaction system (like, fire, etc.)</div></div>
+    <div class="row"><div class="dot"></div><div>Nested comments with pagination</div></div>
+    <div class="row"><div class="dot"></div><div>Follow system + personalized feed algorithm</div></div>
+    <div class="row"><div class="dot"></div><div>FCM push notifications (messages, reactions, follows)</div></div>
+    <div class="row"><div class="dot"></div><div>Group chat rooms with admin roles</div></div>
+  </div>
+
+  <div class="phase p3">
+    <div class="phase-label">Phase 3 — Real-time calls (Weeks 13–18)</div>
+    <div class="phase-title">WebRTC voice & video</div>
+    <div class="row"><div class="dot"></div><div>WebRTC signaling server (STOMP-based offer/answer/ICE)</div></div>
+    <div class="row"><div class="dot"></div><div>STUN: stun.cloudflare.com, TURN: coturn on Render</div></div>
+    <div class="row"><div class="dot"></div><div>Flutter: flutter_webrtc — 1-to-1 voice + video calls</div></div>
+    <div class="row"><div class="dot"></div><div>Call history logging, missed call notifications</div></div>
+    <div class="row"><div class="dot"></div><div>Flutter Web build + deploy (web.nirdist.com.np)</div></div>
+    <div class="row"><div class="dot"></div><div>Publish to Google Play Store</div></div>
+  </div>
+
+  <div class="phase p4">
+    <div class="phase-label">Phase 4 — Scale & Polish (Weeks 19+)</div>
+    <div class="phase-title">iOS, desktop, growth</div>
+    <div class="row"><div class="dot"></div><div>iOS build + App Store submission</div></div>
+    <div class="row"><div class="dot"></div><div>Redis caching for feed, profile, online presence</div></div>
+    <div class="row"><div class="dot"></div><div>Horizontal scaling: Render auto-scale + load balancer</div></div>
+    <div class="row"><div class="dot"></div><div>End-to-end encryption for private chat (Signal protocol)</div></div>
+    <div class="row"><div class="dot"></div><div>Desktop: Flutter Windows/macOS builds</div></div>
+    <div class="row"><div class="dot"></div><div>Analytics dashboard, admin panel</div></div>
+    <div class="row"><div class="dot"></div><div>np.com.nirdist.messanger — investigate domain availability</div></div>
+  </div>
+</div>
+
+<script>
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+}
+</script>
