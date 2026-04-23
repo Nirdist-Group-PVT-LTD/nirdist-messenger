@@ -101,16 +101,32 @@ class _MessengerShellState extends State<MessengerShell> {
     ];
 
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
-        destinations: const <NavigationDestination>[
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum), label: 'Chats'),
-          NavigationDestination(icon: Icon(Icons.group_outlined), selectedIcon: Icon(Icons.group), label: 'People'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
+      extendBody: true,
+      body: Stack(
+        children: <Widget>[
+          const _ShellBackdrop(),
+          IndexedStack(index: _selectedIndex, children: pages),
         ],
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: NavigationBar(
+              height: 70,
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+              destinations: const <NavigationDestination>[
+                NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+                NavigationDestination(icon: Icon(Icons.chat_bubble_outline_rounded), selectedIcon: Icon(Icons.chat_bubble_rounded), label: 'Chats'),
+                NavigationDestination(icon: Icon(Icons.groups_2_outlined), selectedIcon: Icon(Icons.groups_2), label: 'People'),
+                NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -375,6 +391,23 @@ class _HomeTab extends StatelessWidget {
   }
 }
 
+class _ShellBackdrop extends StatelessWidget {
+  const _ShellBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Color(0xFF0A1016), Color(0xFF121923), Color(0xFF0C131B)],
+        ),
+      ),
+    );
+  }
+}
+
 class _ChatsTab extends StatelessWidget {
   const _ChatsTab({
     required this.session,
@@ -427,7 +460,7 @@ class _ChatsTab extends StatelessWidget {
   }
 }
 
-class _PeopleTab extends StatelessWidget {
+class _PeopleTab extends StatefulWidget {
   const _PeopleTab({
     required this.session,
     required this.friends,
@@ -449,66 +482,153 @@ class _PeopleTab extends StatelessWidget {
   final Future<void> Function(ProfileSummary profile) onSendFriendRequest;
 
   @override
+  State<_PeopleTab> createState() => _PeopleTabState();
+}
+
+class _PeopleTabState extends State<_PeopleTab> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool _matchesSearchQuery(ProfileSummary profile, String normalizedQuery) {
+    if (normalizedQuery.isEmpty) {
+      return true;
+    }
+
+    final haystack = <String?>[
+      profile.displayLabel,
+      profile.username,
+      profile.email,
+      profile.phoneNumber,
+    ].whereType<String>().map((value) => value.toLowerCase()).join(' ');
+
+    return haystack.contains(normalizedQuery);
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final normalizedQuery = _searchQuery.trim().toLowerCase();
+    final filteredFriends = widget.friends
+        .where((profile) => _matchesSearchQuery(profile, normalizedQuery))
+        .toList(growable: false);
+    final filteredSuggestions = widget.suggestions
+        .where((profile) => _matchesSearchQuery(profile, normalizedQuery))
+        .toList(growable: false);
+    final isSearching = normalizedQuery.isNotEmpty;
+    final hasResults = filteredFriends.isNotEmpty || filteredSuggestions.isNotEmpty;
+
     return _ShellScaffold(
       title: 'People',
       subtitle: 'Friends first, suggestions second.',
-      session: session,
-      onRefresh: onRefresh,
-      isLoading: isLoading,
-      errorMessage: errorMessage,
+      session: widget.session,
+      onRefresh: widget.onRefresh,
+      isLoading: widget.isLoading,
+      errorMessage: widget.errorMessage,
       children: <Widget>[
-        const _SectionHeader(
-          title: 'Friends',
-          subtitle: 'Accepted connections are ready for private chats.',
-        ),
-        const SizedBox(height: 12),
-        if (friends.isEmpty)
-          const _EmptyStateCard(
-            icon: Icons.group_outlined,
-            title: 'No friends loaded yet',
-            subtitle: 'The backend will fill this list when accepted connections are available.',
-            actionLabel: 'Refresh',
-            onAction: null,
-          )
-        else
-          ...friends.map(
-            (profile) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _PersonTile(
-                profile: profile,
-                primaryLabel: 'Chat',
-                primaryIcon: Icons.message_outlined,
-                onPrimary: () => onStartConversation(profile),
-              ),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0D1720),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: TextField(
+            controller: _searchController,
+            onChanged: (value) => setState(() => _searchQuery = value),
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              labelText: 'Search people',
+              hintText: 'Name, username, email, or phone',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _searchController.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: _clearSearch,
+                      icon: const Icon(Icons.clear_rounded),
+                    ),
+              border: InputBorder.none,
             ),
           ),
+        ),
         const SizedBox(height: 18),
-        const _SectionHeader(
-          title: 'Suggestions',
-          subtitle: 'Potential connections from the backend social graph.',
-        ),
-        const SizedBox(height: 12),
-        if (suggestions.isEmpty)
-          const _EmptyStateCard(
+        if (isSearching && !hasResults)
+          _EmptyStateCard(
             icon: Icons.person_search_outlined,
-            title: 'No suggestions yet',
-            subtitle: 'Contact sync or social graph signals will populate this list later.',
-            actionLabel: 'Refresh',
-            onAction: null,
+            title: 'No matching people',
+            subtitle: 'Try another name, username, email, or phone number.',
+            actionLabel: 'Clear search',
+            onAction: _clearSearch,
           )
-        else
-          ...suggestions.map(
-            (profile) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _PersonTile(
-                profile: profile,
-                primaryLabel: 'Request',
-                primaryIcon: Icons.person_add_alt_1,
-                onPrimary: () => onSendFriendRequest(profile),
+        else ...<Widget>[
+          const _SectionHeader(
+            title: 'Friends',
+            subtitle: 'Accepted connections are ready for private chats.',
+          ),
+          const SizedBox(height: 12),
+          if (filteredFriends.isEmpty)
+            _EmptyStateCard(
+              icon: Icons.group_outlined,
+              title: isSearching ? 'No matching friends' : 'No friends loaded yet',
+              subtitle: isSearching
+                  ? 'Try another search term.'
+                  : 'The backend will fill this list when accepted connections are available.',
+              actionLabel: isSearching ? 'Clear search' : 'Refresh',
+              onAction: isSearching ? _clearSearch : () => widget.onRefresh(),
+            )
+          else
+            ...filteredFriends.map(
+              (profile) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _PersonTile(
+                  profile: profile,
+                  primaryLabel: 'Chat',
+                  primaryIcon: Icons.message_outlined,
+                  onPrimary: () => widget.onStartConversation(profile),
+                ),
               ),
             ),
+          const SizedBox(height: 18),
+          const _SectionHeader(
+            title: 'Suggestions',
+            subtitle: 'Potential connections from the backend social graph.',
           ),
+          const SizedBox(height: 12),
+          if (filteredSuggestions.isEmpty)
+            _EmptyStateCard(
+              icon: Icons.person_search_outlined,
+              title: isSearching ? 'No matching suggestions' : 'No suggestions yet',
+              subtitle: isSearching
+                  ? 'Try another search term.'
+                  : 'Contact sync or social graph signals will populate this list later.',
+              actionLabel: isSearching ? 'Clear search' : 'Refresh',
+              onAction: isSearching ? _clearSearch : () => widget.onRefresh(),
+            )
+          else
+            ...filteredSuggestions.map(
+              (profile) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _PersonTile(
+                  profile: profile,
+                  primaryLabel: 'Request',
+                  primaryIcon: Icons.person_add_alt_1,
+                  onPrimary: () => widget.onSendFriendRequest(profile),
+                ),
+              ),
+            ),
+        ],
       ],
     );
   }
@@ -566,7 +686,7 @@ class _ProfileTab extends StatelessWidget {
               context: context,
               builder: (dialogContext) {
                 return AlertDialog(
-                  title: const Text('Sign out?'),
+                  title: const Text('Switch account?'),
                   content: const Text('This clears the saved JWT and returns to the login screen.'),
                   actions: <Widget>[
                     TextButton(
@@ -575,7 +695,7 @@ class _ProfileTab extends StatelessWidget {
                     ),
                     FilledButton(
                       onPressed: () => Navigator.of(dialogContext).pop(true),
-                      child: const Text('Sign out'),
+                      child: const Text('Switch account'),
                     ),
                   ],
                 );
@@ -586,8 +706,8 @@ class _ProfileTab extends StatelessWidget {
               await onSignOut();
             }
           },
-          icon: const Icon(Icons.logout),
-          label: const Text('Sign out'),
+          icon: const Icon(Icons.login_rounded),
+          label: const Text('Switch account'),
         ),
       ],
     );

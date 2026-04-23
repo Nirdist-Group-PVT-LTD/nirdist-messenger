@@ -18,8 +18,8 @@ class _FakeAuthApiClient extends AuthApiClient {
   _FakeAuthApiClient() : super(apiBaseUrl: 'http://localhost:8080/api');
 
   @override
-  Future<AuthSession> exchangeFirebaseToken({
-    required String idToken,
+  Future<AuthSession> exchangePhoneNumber({
+    required String phoneNumber,
     String? username,
     String? displayName,
     String? email,
@@ -165,7 +165,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(LoginScreen), findsOneWidget);
-    expect(find.text('Connect account'), findsOneWidget);
+    expect(find.text('Login'), findsOneWidget);
   });
 
   testWidgets('renders the backend-backed messenger shell', (WidgetTester tester) async {
@@ -206,5 +206,55 @@ void main() {
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.text('Test User'), findsWidgets);
     expect(find.text('Home'), findsWidgets);
+  });
+
+  testWidgets('filters people in the people tab', (WidgetTester tester) async {
+    const profile = ProfileSummary(
+      vId: 1,
+      username: 'test.user',
+      displayName: 'Test User',
+      email: 'test@example.com',
+      phoneNumber: '+15550000000',
+      firebaseUid: 'firebase-test-user',
+      avatarUrl: null,
+      bio: null,
+      phoneVerifiedAt: null,
+      createdAt: null,
+      updatedAt: null,
+    );
+
+    const session = AuthSession(
+      token: 'token-1234567890',
+      profile: profile,
+      message: 'Login successful',
+      created: false,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MessengerShell(
+          session: session,
+          apiBaseUrl: 'http://localhost:8080/api',
+          onSignOut: () async {},
+          apiClient: _FakeMessengerApiClient(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('People'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'buddy');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Request Buddy'), findsOneWidget);
+    expect(find.text('Test Friend'), findsNothing);
   });
 }

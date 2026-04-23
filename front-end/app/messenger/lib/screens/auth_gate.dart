@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/session_controller.dart';
+import '../widgets/app_logo.dart';
 import 'login_screen.dart';
 import 'messenger_shell.dart';
 
@@ -56,24 +57,7 @@ class _BootSplashScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    colors: <Color>[Color(0xFF0ED1C6), Color(0xFFFFB84D)],
-                  ),
-                  boxShadow: <BoxShadow>[
-                    BoxShadow(
-                      color: const Color(0xFF0ED1C6).withValues(alpha: 0.35),
-                      blurRadius: 28,
-                      spreadRadius: 4,
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.chat_bubble_rounded, color: Colors.black, size: 38),
-              ),
+              const AppLogo(size: 112, padding: 24),
               const SizedBox(height: 24),
               Text(
                 'Nirdist Messenger',
