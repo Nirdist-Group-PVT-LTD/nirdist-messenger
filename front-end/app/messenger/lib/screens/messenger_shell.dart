@@ -92,6 +92,7 @@ class _MessengerShellState extends State<MessengerShell> {
         isLoading: _isLoading || _isRefreshing,
         errorMessage: _errorMessage,
         onRefresh: _refresh,
+        searchProfiles: _searchProfiles,
         onStartConversation: _startConversation,
         onSendFriendRequest: _sendFriendRequest,
       ),
@@ -199,6 +200,13 @@ class _MessengerShellState extends State<MessengerShell> {
     });
 
     await _loadDashboard();
+  }
+
+  Future<List<ProfileSummary>> _searchProfiles(String query) {
+    return _apiClient.searchProfiles(
+      query: query,
+      excludeUserId: widget.session.profile.vId,
+    );
   }
 
   Future<_RoomPreview> _buildRoomPreview(ChatRoomSummary room, Map<int, ProfileSummary> profilesById) async {
@@ -476,6 +484,7 @@ class _PeopleTab extends StatefulWidget {
     required this.onRefresh,
     required this.onStartConversation,
     required this.onSendFriendRequest,
+    required this.searchProfiles,
   });
 
   final AuthSession session;
@@ -485,6 +494,7 @@ class _PeopleTab extends StatefulWidget {
   final bool isLoading;
   final String? errorMessage;
   final Future<void> Function() onRefresh;
+  final Future<List<ProfileSummary>> Function(String query) searchProfiles;
   final Future<void> Function(ProfileSummary profile) onStartConversation;
   final Future<void> Function(ProfileSummary profile) onSendFriendRequest;
 
@@ -495,6 +505,10 @@ class _PeopleTab extends StatefulWidget {
 class _PeopleTabState extends State<_PeopleTab> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  List<ProfileSummary> _searchResults = <ProfileSummary>[];
+  bool _isSearching = false;
+  String? _searchError;
+  int _searchRequestId = 0;
 
   @override
   void dispose() {
@@ -521,7 +535,58 @@ class _PeopleTabState extends State<_PeopleTab> {
     _searchController.clear();
     setState(() {
       _searchQuery = '';
+      _searchResults = <ProfileSummary>[];
+      _isSearching = false;
+      _searchError = null;
     });
+  }
+
+  Future<void> _runSearch(String value) async {
+    final query = value.trim();
+    if (query.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _searchResults = <ProfileSummary>[];
+        _isSearching = false;
+        _searchError = null;
+      });
+      return;
+    }
+
+    final requestId = ++_searchRequestId;
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+      _searchError = null;
+    });
+
+    try {
+      final results = await widget.searchProfiles(query);
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
+    } catch (error) {
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+
+      setState(() {
+        _searchResults = <ProfileSummary>[];
+        _isSearching = false;
+        _searchError = error is MessengerApiException ? error.message : 'Unable to search people.';
+      });
+    }
   }
 
   @override
@@ -538,6 +603,9 @@ class _PeopleTabState extends State<_PeopleTab> {
       .toList(growable: false);
     final isSearching = normalizedQuery.isNotEmpty;
     final friendIds = widget.friends.map((profile) => profile.vId).toSet();
+      final searchResults = _searchResults
+        .where((profile) => _matchesSearchQuery(profile, normalizedQuery))
+        .toList(growable: false);
 
     return _ShellScaffold(
       title: 'People',
@@ -556,8 +624,11 @@ class _PeopleTabState extends State<_PeopleTab> {
           ),
           child: TextField(
             controller: _searchController,
-            onChanged: (value) => setState(() => _searchQuery = value),
-            onSubmitted: (value) => setState(() => _searchQuery = value),
+            onChanged: (value) {
+              setState(() => _searchQuery = value);
+              _runSearch(value);
+            },
+            onSubmitted: _runSearch,
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
               labelText: 'Search users',
@@ -575,15 +646,54 @@ class _PeopleTabState extends State<_PeopleTab> {
           ),
         ),
         const SizedBox(height: 18),
-        if (isSearching && filteredDirectory.isEmpty)
+        if (_isSearching)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 18),
+            child: LinearProgressIndicator(minHeight: 2),
+          ),
+        if (isSearching && _searchError != null)
           _EmptyStateCard(
             icon: Icons.person_search_outlined,
-            title: 'No matching people',
-            subtitle: 'Try another name, username, email, or phone number.',
-            actionLabel: 'Clear search',
-            onAction: _clearSearch,
+            title: 'Search failed',
+            subtitle: _searchError!,
+            actionLabel: 'Retry',
+            onAction: () => _runSearch(_searchQuery),
           )
         else ...<Widget>[
+          if (isSearching) ...<Widget>[
+            const _SectionHeader(
+              title: 'Search results',
+              subtitle: 'Users returned directly from the backend search endpoint.',
+            ),
+            const SizedBox(height: 12),
+            if (searchResults.isEmpty)
+              _EmptyStateCard(
+                icon: Icons.person_search_outlined,
+                title: 'No matching users',
+                subtitle: 'Try another name, username, email, or phone number.',
+                actionLabel: 'Clear search',
+                onAction: _clearSearch,
+              )
+            else
+              ...searchResults.map(
+                (profile) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _PersonTile(
+                    profile: profile,
+                    primaryLabel: friendIds.contains(profile.vId) ? 'Chat' : 'Request',
+                    primaryIcon: friendIds.contains(profile.vId) ? Icons.message_outlined : Icons.person_add_alt_1,
+                    onPrimary: () {
+                      if (friendIds.contains(profile.vId)) {
+                        widget.onStartConversation(profile);
+                      } else {
+                        widget.onSendFriendRequest(profile);
+                      }
+                    },
+                  ),
+                ),
+              ),
+            const SizedBox(height: 18),
+          ],
           const _SectionHeader(
             title: 'All users',
             subtitle: 'Every user except you, pulled from the backend for debugging.',

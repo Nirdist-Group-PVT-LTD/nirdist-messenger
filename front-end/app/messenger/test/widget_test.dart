@@ -174,6 +174,24 @@ class _FakeMessengerApiClient extends MessengerApiClient {
       ];
     }
 
+    if (normalizedQuery.contains('buddy')) {
+      return <ProfileSummary>[
+        const ProfileSummary(
+          vId: 3,
+          username: 'request.buddy',
+          displayName: 'Request Buddy',
+          email: 'buddy@example.com',
+          phoneNumber: '+15550000002',
+          firebaseUid: 'firebase-request-buddy',
+          avatarUrl: null,
+          bio: null,
+          phoneVerifiedAt: null,
+          createdAt: null,
+          updatedAt: null,
+        ),
+      ];
+    }
+
     return <ProfileSummary>[];
   }
 
@@ -323,7 +341,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'zoe');
     await tester.pumpAndSettle();
 
-    expect(find.text('Zoe Winter'), findsOneWidget);
+    expect(find.text('Zoe Winter'), findsWidgets);
     expect(find.text('Request'), findsWidgets);
     expect(find.text('Test Friend'), findsNothing);
     expect(find.text('Request Buddy'), findsNothing);
@@ -373,7 +391,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Test Friend'), findsOneWidget);
-    expect(find.text('Request Buddy'), findsOneWidget);
+    expect(find.text('Request Buddy'), findsWidgets);
     expect(find.text('Zoe Winter'), findsOneWidget);
     expect(find.text('Request'), findsWidgets);
   });
@@ -424,7 +442,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'buddy');
     await tester.pumpAndSettle();
 
-    expect(find.text('Request Buddy'), findsOneWidget);
+    expect(find.text('Request Buddy'), findsWidgets);
     expect(find.text('Test Friend'), findsNothing);
   });
 }
