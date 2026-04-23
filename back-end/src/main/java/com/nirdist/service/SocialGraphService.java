@@ -30,7 +30,6 @@ import com.nirdist.entity.Profile;
 import com.nirdist.repository.ContactSyncEntryRepository;
 import com.nirdist.repository.FriendRequestRepository;
 import com.nirdist.repository.ProfileRepository;
-import com.nirdist.util.PhoneNumberNormalizer;
 
 @Service
 @Transactional
@@ -157,7 +156,7 @@ public class SocialGraphService {
                 continue;
             }
 
-            String normalizedPhone = PhoneNumberNormalizer.normalize(contact.phoneNumber());
+            String normalizedPhone = normalizePhoneNumber(contact.phoneNumber());
             if (normalizedPhone == null || Objects.equals(normalizedPhone, owner.getPhoneNumber())) {
                 continue;
             }

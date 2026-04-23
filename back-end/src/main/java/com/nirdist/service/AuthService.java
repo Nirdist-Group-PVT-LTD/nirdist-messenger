@@ -19,7 +19,6 @@ import com.nirdist.dto.ProfileResponse;
 import com.nirdist.entity.Profile;
 import com.nirdist.repository.ProfileRepository;
 import com.nirdist.security.JwtTokenProvider;
-import com.nirdist.util.PhoneNumberNormalizer;
 
 @Service
 @Transactional
@@ -125,12 +124,37 @@ public class AuthService {
     }
 
     private String requirePhoneNumber(String phoneNumber) {
-        String normalizedPhone = PhoneNumberNormalizer.normalize(phoneNumber);
+        String normalizedPhone = normalizePhoneNumber(phoneNumber);
         if (normalizedPhone == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "phone number is required");
         }
 
         return normalizedPhone;
+    }
+
+    private String normalizePhoneNumber(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+
+        StringBuilder digits = new StringBuilder();
+        for (int index = 0; index < trimmed.length(); index++) {
+            char current = trimmed.charAt(index);
+            if (Character.isDigit(current)) {
+                digits.append(current);
+            }
+        }
+
+        if (digits.length() == 0) {
+            return null;
+        }
+
+        return "+" + digits;
     }
 
     private String requireVerifiedUid(String uid) {
