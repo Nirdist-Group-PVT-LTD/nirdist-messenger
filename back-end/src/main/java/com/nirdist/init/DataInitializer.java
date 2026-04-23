@@ -5,7 +5,6 @@ import java.util.Optional;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 
 import com.nirdist.entity.Profile;
 import com.nirdist.repository.ProfileRepository;
@@ -16,7 +15,7 @@ import com.nirdist.repository.ProfileRepository;
  * Can be disabled by setting INIT_TEST_DATA=false environment variable.
  */
 @Configuration
-@Profile("!test")
+@org.springframework.context.annotation.Profile("!test")
 public class DataInitializer {
     
     @Bean
@@ -59,7 +58,5 @@ public class DataInitializer {
             
             System.out.println("Created test profile: " + displayName + " (" + phoneNumber + ")");
         }
-    }
-}
     }
 }
