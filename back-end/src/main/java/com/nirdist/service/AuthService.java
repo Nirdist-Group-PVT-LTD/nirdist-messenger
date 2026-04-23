@@ -50,7 +50,7 @@ public class AuthService {
                 .orElseGet(Profile::new);
         boolean created = profile.getVId() == null;
 
-        if (created) {
+        if (created || trimToNull(profile.getFirebaseUid()) == null) {
             profile.setFirebaseUid(buildDirectFirebaseUid(phoneNumber));
         }
 
@@ -65,7 +65,7 @@ public class AuthService {
         profile.setPhoneNumber(phoneNumber);
         profile.setAvatarUrl(avatarUrl);
 
-        Profile savedProfile = profileRepository.save(profile);
+        Profile savedProfile = profileRepository.saveAndFlush(profile);
         return buildAuthResponse(savedProfile, created);
     }
 

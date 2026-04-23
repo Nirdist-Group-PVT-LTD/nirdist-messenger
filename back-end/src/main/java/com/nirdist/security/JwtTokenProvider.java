@@ -1,17 +1,21 @@
 package com.nirdist.security;
 
+import java.nio.charset.StandardCharsets;
+import java.security.Key;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
+import java.util.Date;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
 import com.nirdist.entity.Profile;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-
-import java.nio.charset.StandardCharsets;
-import java.security.Key;
-import java.util.Base64;
-import java.util.Date;
 
 @Component
 public class JwtTokenProvider {
@@ -86,6 +90,15 @@ public class JwtTokenProvider {
             return rawSecret;
         }
 
-        throw new IllegalStateException("JWT secret must be at least 64 bytes for HS512");
+        return digestWithSha512(rawSecret);
+    }
+
+    private byte[] digestWithSha512(byte[] input) {
+        try {
+            MessageDigest messageDigest = MessageDigest.getInstance("SHA-512");
+            return messageDigest.digest(input);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-512 algorithm is unavailable", e);
+        }
     }
 }
