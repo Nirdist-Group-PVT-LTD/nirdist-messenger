@@ -10,7 +10,7 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: JDBC_DATABASE_URL
-        value: postgresql://neondb_owner:npg_sMtoP6Qd7imE@ep-dry-breeze-aot9a9gh-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+        value: ${NEON_CONNECTION_STRING}
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRATION

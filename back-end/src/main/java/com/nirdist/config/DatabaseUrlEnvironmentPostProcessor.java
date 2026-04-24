@@ -16,8 +16,8 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         String configuredUrl = firstNonBlank(
-                environment.getProperty("SPRING_DATASOURCE_URL"),
                 environment.getProperty("JDBC_DATABASE_URL"),
+            environment.getProperty("SPRING_DATASOURCE_URL"),
                 environment.getProperty("DATABASE_URL")
         );
 
