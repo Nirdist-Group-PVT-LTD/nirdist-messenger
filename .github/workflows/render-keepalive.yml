@@ -16,7 +16,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          url="${RENDER_KEEPALIVE_URL:-https://api.nirdist.com.np/api/health}"
+          url="${RENDER_KEEPALIVE_URL:-https://nirdist-backend-uctd.onrender.com/api/health}"
 
           for attempt in 1 2 3; do
             echo "Ping attempt ${attempt}: ${url}"
