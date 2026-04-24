@@ -9,9 +9,21 @@ services:
     dockerContext: .
     healthCheckPath: /api/health
     envVars:
+      - key: JDBC_DATABASE_URL
+        sync: false
       - key: NEON_CONNECTION_STRING
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
         sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRATION
         value: "86400000"
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: INIT_TEST_DATA
+        value: "true"

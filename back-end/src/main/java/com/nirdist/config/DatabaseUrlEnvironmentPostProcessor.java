@@ -8,18 +8,20 @@ import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.nirdist.util.DatabaseUrlNormalizer;
 
 public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
 
+    private static final Logger log = LoggerFactory.getLogger(DatabaseUrlEnvironmentPostProcessor.class);
+
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-        String explicitDatabaseUrl = resolvePlaceholders(environment, firstNonBlank(
-            environment.getProperty("JDBC_DATABASE_URL"),
-            environment.getProperty("NEON_CONNECTION_STRING"),
-            environment.getProperty("DATABASE_URL")
-        ));
+        String explicitDatabaseUrlSource = firstConfiguredDatabaseUrlSource(environment);
+        String explicitDatabaseUrl = resolvePlaceholders(environment,
+                explicitDatabaseUrlSource == null ? null : environment.getProperty(explicitDatabaseUrlSource));
         String configuredUrl = resolvePlaceholders(environment, firstNonBlank(
             explicitDatabaseUrl,
             environment.getProperty("SPRING_DATASOURCE_URL")
@@ -29,9 +31,11 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         try {
             normalizedConfig = DatabaseUrlNormalizer.normalize(configuredUrl);
         } catch (IllegalArgumentException ignored) {
+            log.warn("Skipping database URL normalization because the configured URL could not be parsed");
             return;
         }
         if (normalizedConfig == null) {
+            log.info("No database URL normalization applied because no datasource URL was configured");
             return;
         }
 
@@ -64,6 +68,13 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
             environment.getPropertySources().addFirst(
                     new MapPropertySource("normalized-database-url", properties)
             );
+            log.info(
+                    "Normalized datasource URL from {} to {} (username provided: {}, password provided: {})",
+                    explicitDatabaseUrlSource == null ? "SPRING_DATASOURCE_URL/defaults" : explicitDatabaseUrlSource,
+                    describeJdbcUrl(normalizedConfig.jdbcUrl()),
+                    normalizedConfig.username() != null || hasConfiguredUsername(environment),
+                    normalizedConfig.password() != null || hasConfiguredPassword(environment)
+            );
         }
     }
 
@@ -89,6 +100,44 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         }
 
         return null;
+    }
+
+    private String firstConfiguredDatabaseUrlSource(ConfigurableEnvironment environment) {
+        if (firstNonBlank(environment.getProperty("JDBC_DATABASE_URL")) != null) {
+            return "JDBC_DATABASE_URL";
+        }
+        if (firstNonBlank(environment.getProperty("NEON_CONNECTION_STRING")) != null) {
+            return "NEON_CONNECTION_STRING";
+        }
+        if (firstNonBlank(environment.getProperty("DATABASE_URL")) != null) {
+            return "DATABASE_URL";
+        }
+        return null;
+    }
+
+    private boolean hasConfiguredUsername(ConfigurableEnvironment environment) {
+        return firstNonBlank(
+                environment.getProperty("spring.datasource.username"),
+                environment.getProperty("DB_USER"),
+                environment.getProperty("PGUSER")
+        ) != null;
+    }
+
+    private boolean hasConfiguredPassword(ConfigurableEnvironment environment) {
+        return firstNonBlank(
+                environment.getProperty("spring.datasource.password"),
+                environment.getProperty("DB_PASSWORD"),
+                environment.getProperty("PGPASSWORD")
+        ) != null;
+    }
+
+    private String describeJdbcUrl(String jdbcUrl) {
+        if (jdbcUrl == null) {
+            return "n/a";
+        }
+
+        int queryIndex = jdbcUrl.indexOf('?');
+        return queryIndex >= 0 ? jdbcUrl.substring(0, queryIndex) : jdbcUrl;
     }
 
     private String resolvePlaceholders(ConfigurableEnvironment environment, String value) {
