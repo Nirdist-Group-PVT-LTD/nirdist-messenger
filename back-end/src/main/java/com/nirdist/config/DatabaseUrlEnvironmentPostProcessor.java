@@ -15,14 +15,15 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-        String explicitDatabaseUrl = firstNonBlank(
+        String explicitDatabaseUrl = resolvePlaceholders(environment, firstNonBlank(
             environment.getProperty("JDBC_DATABASE_URL"),
+            environment.getProperty("NEON_CONNECTION_STRING"),
             environment.getProperty("DATABASE_URL")
-        );
-        String configuredUrl = firstNonBlank(
+        ));
+        String configuredUrl = resolvePlaceholders(environment, firstNonBlank(
             explicitDatabaseUrl,
             environment.getProperty("SPRING_DATASOURCE_URL")
-        );
+        ));
 
         DatabaseUrlNormalizer.NormalizedDatabaseConfig normalizedConfig = DatabaseUrlNormalizer.normalize(configuredUrl);
         if (normalizedConfig == null) {
@@ -83,5 +84,13 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         }
 
         return null;
+    }
+
+    private String resolvePlaceholders(ConfigurableEnvironment environment, String value) {
+        if (value == null) {
+            return null;
+        }
+
+        return environment.resolvePlaceholders(value);
     }
 }
