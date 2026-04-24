@@ -15,10 +15,13 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
+        String explicitDatabaseUrl = firstNonBlank(
+            environment.getProperty("JDBC_DATABASE_URL"),
+            environment.getProperty("DATABASE_URL")
+        );
         String configuredUrl = firstNonBlank(
-                environment.getProperty("JDBC_DATABASE_URL"),
-            environment.getProperty("SPRING_DATASOURCE_URL"),
-                environment.getProperty("DATABASE_URL")
+            explicitDatabaseUrl,
+            environment.getProperty("SPRING_DATASOURCE_URL")
         );
 
         DatabaseUrlNormalizer.NormalizedDatabaseConfig normalizedConfig = DatabaseUrlNormalizer.normalize(configuredUrl);
@@ -29,7 +32,10 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("spring.datasource.url", normalizedConfig.jdbcUrl());
 
-        if (firstNonBlank(
+        if (normalizedConfig.username() != null && explicitDatabaseUrl != null) {
+            // Explicit JDBC_DATABASE_URL / DATABASE_URL credentials should win over stale DB_USER values.
+            properties.put("spring.datasource.username", normalizedConfig.username());
+        } else if (firstNonBlank(
                 environment.getProperty("spring.datasource.username"),
                 environment.getProperty("DB_USER"),
                 environment.getProperty("PGUSER")
@@ -37,7 +43,10 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
             properties.put("spring.datasource.username", normalizedConfig.username());
         }
 
-        if (firstNonBlank(
+        if (normalizedConfig.password() != null && explicitDatabaseUrl != null) {
+            // Explicit JDBC_DATABASE_URL / DATABASE_URL credentials should win over stale DB_PASSWORD values.
+            properties.put("spring.datasource.password", normalizedConfig.password());
+        } else if (firstNonBlank(
                 environment.getProperty("spring.datasource.password"),
                 environment.getProperty("DB_PASSWORD"),
                 environment.getProperty("PGPASSWORD")
