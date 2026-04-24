@@ -44,4 +44,4 @@ docker run --rm -p 8080:8080 \
 - If the connection string already contains the username and password, the backend extracts them automatically.
 - You can also provide `DB_USER` and `DB_PASSWORD` separately when you do not want credentials embedded in the URL.
 - If a URL includes `channel_binding=require`, the backend replaces it with JDBC-compatible `channelBinding=disable`.
-- If a Neon pooled hostname (`-pooler.`) is provided, the backend normalizer rewrites it to the direct Neon host automatically.
+- If a Neon pooled hostname is provided (`-pooler.` or `-pooler.c-<n>.`), the backend normalizer rewrites it to the direct Neon host automatically.

@@ -135,8 +135,13 @@ public final class DatabaseUrlNormalizer {
 
         // Some Neon pooled hosts can fail SCRAM negotiation with the JDBC driver.
         // Prefer direct host when a pooler hostname is provided.
-        if (host.endsWith(".neon.tech") && host.contains("-pooler.")) {
-            return host.replace("-pooler.", ".");
+        if (host.endsWith(".neon.tech") && host.contains("-pooler")) {
+            // Example:
+            // ep-abc-pooler.c-2.ap-southeast-1.aws.neon.tech -> ep-abc.ap-southeast-1.aws.neon.tech
+            // ep-abc-pooler.us-east-1.aws.neon.tech         -> ep-abc.us-east-1.aws.neon.tech
+            String normalized = host.replaceFirst("-pooler\\.c-\\d+\\.", ".");
+            normalized = normalized.replaceFirst("-pooler\\.", ".");
+            return normalized;
         }
 
         return host;
