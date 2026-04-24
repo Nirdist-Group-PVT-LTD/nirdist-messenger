@@ -20,6 +20,17 @@ public final class DatabaseUrlNormalizer {
             return null;
         }
 
+        if (trimmed.startsWith("jdbc:postgresql://") || trimmed.startsWith("jdbc:postgres://")) {
+            String rawUrl = trimmed.substring("jdbc:".length());
+            NormalizedDatabaseConfig normalizedConfig = normalize(rawUrl);
+            if (normalizedConfig == null) {
+                return null;
+            }
+
+            // Keep explicit JDBC URL compatibility while still sanitizing query parameters.
+            return new NormalizedDatabaseConfig(normalizedConfig.jdbcUrl(), null, null);
+        }
+
         if (trimmed.startsWith("jdbc:")) {
             return new NormalizedDatabaseConfig(trimmed, null, null);
         }
@@ -30,7 +41,7 @@ public final class DatabaseUrlNormalizer {
             return new NormalizedDatabaseConfig(trimmed, null, null);
         }
 
-        String host = trimToNull(uri.getHost());
+        String host = normalizeHost(trimToNull(uri.getHost()));
         if (host == null) {
             throw new IllegalArgumentException("Database URL is missing a host");
         }
@@ -74,38 +85,39 @@ public final class DatabaseUrlNormalizer {
     }
 
     private static String sanitizeQueryForJdbc(String rawQuery) {
-        if (rawQuery == null) {
-            return "sslmode=require";
-        }
-
         Map<String, String> params = new LinkedHashMap<>();
-        String[] pairs = rawQuery.split("&");
-        for (String pair : pairs) {
-            String token = trimToNull(pair);
-            if (token == null) {
-                continue;
-            }
+        if (rawQuery != null) {
+            String[] pairs = rawQuery.split("&");
+            for (String pair : pairs) {
+                String token = trimToNull(pair);
+                if (token == null) {
+                    continue;
+                }
 
-            int separator = token.indexOf('=');
-            String rawKey = separator >= 0 ? token.substring(0, separator) : token;
-            String rawValue = separator >= 0 ? token.substring(separator + 1) : "";
-            String key = trimToNull(rawKey);
-            if (key == null) {
-                continue;
-            }
+                int separator = token.indexOf('=');
+                String rawKey = separator >= 0 ? token.substring(0, separator) : token;
+                String rawValue = separator >= 0 ? token.substring(separator + 1) : "";
+                String key = trimToNull(rawKey);
+                if (key == null) {
+                    continue;
+                }
 
-            String normalizedKey = key.toLowerCase();
-            if ("channel_binding".equals(normalizedKey) || "channelbinding".equals(normalizedKey)) {
-                continue;
-            }
+                String normalizedKey = key.toLowerCase();
+                if ("channel_binding".equals(normalizedKey) || "channelbinding".equals(normalizedKey)) {
+                    continue;
+                }
 
-            params.put(key, rawValue);
+                params.put(key, rawValue);
+            }
         }
 
         boolean hasSslMode = params.keySet().stream().anyMatch(k -> "sslmode".equalsIgnoreCase(k));
         if (!hasSslMode) {
             params.put("sslmode", "require");
         }
+
+        // Explicitly disable channel binding for compatibility with pooled PostgreSQL endpoints.
+        params.put("channelBinding", "disable");
 
         if (params.isEmpty()) {
             return null;
@@ -114,6 +126,20 @@ public final class DatabaseUrlNormalizer {
         StringJoiner joiner = new StringJoiner("&");
         params.forEach((k, v) -> joiner.add(v.isEmpty() ? k : k + "=" + v));
         return joiner.toString();
+    }
+
+    private static String normalizeHost(String host) {
+        if (host == null) {
+            return null;
+        }
+
+        // Some Neon pooled hosts can fail SCRAM negotiation with the JDBC driver.
+        // Prefer direct host when a pooler hostname is provided.
+        if (host.endsWith(".neon.tech") && host.contains("-pooler.")) {
+            return host.replace("-pooler.", ".");
+        }
+
+        return host;
     }
 
     private static String decode(String value) {
