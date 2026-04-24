@@ -25,7 +25,12 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
             environment.getProperty("SPRING_DATASOURCE_URL")
         ));
 
-        DatabaseUrlNormalizer.NormalizedDatabaseConfig normalizedConfig = DatabaseUrlNormalizer.normalize(configuredUrl);
+        DatabaseUrlNormalizer.NormalizedDatabaseConfig normalizedConfig;
+        try {
+            normalizedConfig = DatabaseUrlNormalizer.normalize(configuredUrl);
+        } catch (IllegalArgumentException ignored) {
+            return;
+        }
         if (normalizedConfig == null) {
             return;
         }
@@ -91,6 +96,12 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
             return null;
         }
 
-        return environment.resolvePlaceholders(value);
+        String resolved = environment.resolvePlaceholders(value);
+        if (resolved.contains("${")) {
+            // Skip unresolved placeholders (for example when a Render secret is missing).
+            return null;
+        }
+
+        return resolved;
     }
 }

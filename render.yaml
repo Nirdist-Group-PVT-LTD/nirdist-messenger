@@ -9,8 +9,8 @@ services:
     dockerContext: .
     healthCheckPath: /api/health
     envVars:
-      - key: JDBC_DATABASE_URL
-        value: ${NEON_CONNECTION_STRING}
+      - key: NEON_CONNECTION_STRING
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRATION
