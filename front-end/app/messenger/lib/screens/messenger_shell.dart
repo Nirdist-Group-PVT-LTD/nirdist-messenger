@@ -4,8 +4,10 @@ import '../models/auth_session.dart';
 import '../models/chat_message_summary.dart';
 import '../models/chat_room_summary.dart';
 import '../models/profile_summary.dart';
+import '../services/auth_api_client.dart';
 import '../services/messenger_api_client.dart';
 import 'conversation_screen.dart';
+import 'user_finder_screen.dart';
 
 class MessengerShell extends StatefulWidget {
   const MessengerShell({
@@ -95,6 +97,7 @@ class _MessengerShellState extends State<MessengerShell> {
         searchProfiles: _searchProfiles,
         onStartConversation: _startConversation,
         onSendFriendRequest: _sendFriendRequest,
+        onOpenFinder: _openUserFinder,
       ),
       _ProfileTab(
         session: widget.session,
@@ -141,24 +144,18 @@ class _MessengerShellState extends State<MessengerShell> {
     });
 
     try {
+      final loadIssues = <String>[];
       final userId = widget.session.profile.vId;
-      final friendsFuture = _apiClient.listFriends(userId);
-      final suggestionsFuture = _apiClient.listSuggestions(userId);
-      final profilesFuture = _apiClient.listProfiles(userId);
-      final roomsFuture = _apiClient.listRooms(userId);
-
-      final friends = await friendsFuture;
-      final suggestions = await suggestionsFuture;
-      final profiles = await profilesFuture;
-      final rooms = await roomsFuture;
+      final friends = await _safeLoadProfiles(() => _apiClient.listFriends(userId), loadIssues);
+      final suggestions = await _safeLoadProfiles(() => _apiClient.listSuggestions(userId), loadIssues);
+      final profiles = await _safeLoadProfiles(() => _apiClient.listProfiles(userId), loadIssues);
 
       final profilesById = <int, ProfileSummary>{
-        for (final profile in <ProfileSummary>[widget.session.profile, ...friends, ...suggestions, ...profiles]) profile.vId: profile,
+        for (final profile in <ProfileSummary>[widget.session.profile, ...friends, ...suggestions, ...profiles])
+          profile.vId: profile,
       };
 
-      final roomPreviews = await Future.wait(
-        rooms.map((room) => _buildRoomPreview(room, profilesById)),
-      );
+      final roomPreviews = await _safeLoadRooms(() => _apiClient.listRooms(userId), profilesById, loadIssues);
 
       roomPreviews.sort((left, right) {
         final leftDate = left.lastMessage?.createdAt ?? left.room.updatedAt ?? left.room.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -175,6 +172,9 @@ class _MessengerShellState extends State<MessengerShell> {
         _suggestions = suggestions;
         _profiles = profiles;
         _rooms = roomPreviews;
+        _errorMessage = loadIssues.isEmpty ? null : loadIssues.first;
+        _isLoading = false;
+        _isRefreshing = false;
       });
     } catch (error) {
       if (!mounted) {
@@ -182,15 +182,61 @@ class _MessengerShellState extends State<MessengerShell> {
       }
 
       setState(() {
-        _errorMessage = error is MessengerApiException ? error.message : 'Unable to load your messenger data.';
+        _errorMessage = error is MessengerApiException ? error.message : 'Unable to load the dashboard.';
+        _isLoading = false;
+        _isRefreshing = false;
       });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _isRefreshing = false;
-        });
+    }
+  }
+
+  Future<List<ProfileSummary>> _safeLoadProfiles(
+    Future<List<ProfileSummary>> Function() loader,
+    List<String> loadIssues,
+  ) async {
+    try {
+      return await loader();
+    } catch (error) {
+      if (error is MessengerApiException) {
+        debugPrint('People tab profile load failed: ${error.message}');
+        loadIssues.add(error.message);
+      } else {
+        debugPrint('People tab profile load failed: $error');
+        loadIssues.add('Unable to load people from the backend.');
       }
+
+      return <ProfileSummary>[];
+    }
+  }
+
+  Future<List<_RoomPreview>> _safeLoadRooms(
+    Future<List<ChatRoomSummary>> Function() loader,
+    Map<int, ProfileSummary> profilesById,
+    List<String> loadIssues,
+  ) async {
+    try {
+      final rooms = await loader();
+
+      final roomPreviews = await Future.wait(
+        rooms.map((room) => _buildRoomPreview(room, profilesById)),
+      );
+
+      roomPreviews.sort((left, right) {
+        final leftDate = left.lastMessage?.createdAt ?? left.room.updatedAt ?? left.room.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final rightDate = right.lastMessage?.createdAt ?? right.room.updatedAt ?? right.room.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return rightDate.compareTo(leftDate);
+      });
+
+      return roomPreviews;
+    } catch (error) {
+      if (error is MessengerApiException) {
+        debugPrint('People tab room load failed: ${error.message}');
+        loadIssues.add(error.message);
+      } else {
+        debugPrint('People tab room load failed: $error');
+        loadIssues.add('Unable to load chat rooms from the backend.');
+      }
+
+      return <_RoomPreview>[];
     }
   }
 
@@ -207,6 +253,27 @@ class _MessengerShellState extends State<MessengerShell> {
       query: query,
       excludeUserId: widget.session.profile.vId,
     );
+  }
+
+  Future<void> _openUserFinder() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => UserFinderScreen(
+          session: widget.session,
+          apiBaseUrl: widget.apiBaseUrl,
+          apiClient: _apiClient,
+          authApiClient: AuthApiClient(apiBaseUrl: widget.apiBaseUrl),
+          friendIds: _friends.map((profile) => profile.vId).toSet(),
+          onStartConversation: _startConversation,
+          onSendFriendRequest: _sendFriendRequest,
+          initialQuery: '+9779821663633',
+        ),
+      ),
+    );
+
+    if (mounted) {
+      await _loadDashboard();
+    }
   }
 
   Future<_RoomPreview> _buildRoomPreview(ChatRoomSummary room, Map<int, ProfileSummary> profilesById) async {
@@ -485,6 +552,7 @@ class _PeopleTab extends StatefulWidget {
     required this.onStartConversation,
     required this.onSendFriendRequest,
     required this.searchProfiles,
+    required this.onOpenFinder,
   });
 
   final AuthSession session;
@@ -497,6 +565,7 @@ class _PeopleTab extends StatefulWidget {
   final Future<List<ProfileSummary>> Function(String query) searchProfiles;
   final Future<void> Function(ProfileSummary profile) onStartConversation;
   final Future<void> Function(ProfileSummary profile) onSendFriendRequest;
+  final VoidCallback onOpenFinder;
 
   @override
   State<_PeopleTab> createState() => _PeopleTabState();
@@ -556,12 +625,18 @@ class _PeopleTabState extends State<_PeopleTab> {
       return;
     }
 
+    final normalizedQuery = query.toLowerCase();
+    final localMatches = widget.allProfiles
+        .where((profile) => _matchesSearchQuery(profile, normalizedQuery))
+        .toList(growable: false);
+
     final requestId = ++_searchRequestId;
     if (!mounted) {
       return;
     }
 
     setState(() {
+      _searchResults = localMatches;
       _isSearching = true;
       _searchError = null;
     });
@@ -572,8 +647,13 @@ class _PeopleTabState extends State<_PeopleTab> {
         return;
       }
 
+      final mergedResults = <int, ProfileSummary>{
+        for (final profile in results) profile.vId: profile,
+        for (final profile in localMatches) profile.vId: profile,
+      }.values.toList(growable: false);
+
       setState(() {
-        _searchResults = results;
+        _searchResults = mergedResults;
         _isSearching = false;
       });
     } catch (error) {
@@ -582,9 +662,9 @@ class _PeopleTabState extends State<_PeopleTab> {
       }
 
       setState(() {
-        _searchResults = <ProfileSummary>[];
+        _searchResults = localMatches;
         _isSearching = false;
-        _searchError = error is MessengerApiException ? error.message : 'Unable to search people.';
+        _searchError = null;
       });
     }
   }
@@ -599,13 +679,16 @@ class _PeopleTabState extends State<_PeopleTab> {
         .where((profile) => _matchesSearchQuery(profile, normalizedQuery))
         .toList(growable: false);
     final filteredDirectory = widget.allProfiles
-      .where((profile) => _matchesSearchQuery(profile, normalizedQuery))
-      .toList(growable: false);
-    final isSearching = normalizedQuery.isNotEmpty;
-    final friendIds = widget.friends.map((profile) => profile.vId).toSet();
-      final searchResults = _searchResults
         .where((profile) => _matchesSearchQuery(profile, normalizedQuery))
         .toList(growable: false);
+    final isSearching = normalizedQuery.isNotEmpty;
+    final friendIds = widget.friends.map((profile) => profile.vId).toSet();
+    final searchResults = _searchResults
+        .where((profile) => _matchesSearchQuery(profile, normalizedQuery))
+        .toList(growable: false);
+    final mergedSearchResults = <int, ProfileSummary>{
+      for (final profile in searchResults) profile.vId: profile,
+    }.values.toList(growable: false);
 
     return _ShellScaffold(
       title: 'People',
@@ -645,6 +728,12 @@ class _PeopleTabState extends State<_PeopleTab> {
             ),
           ),
         ),
+        const SizedBox(height: 12),
+        FilledButton.tonalIcon(
+          onPressed: widget.onOpenFinder,
+          icon: const Icon(Icons.manage_search_rounded),
+          label: const Text('Open user finder'),
+        ),
         const SizedBox(height: 18),
         if (_isSearching)
           const Padding(
@@ -666,7 +755,7 @@ class _PeopleTabState extends State<_PeopleTab> {
               subtitle: 'Users returned directly from the backend search endpoint.',
             ),
             const SizedBox(height: 12),
-            if (searchResults.isEmpty)
+            if (mergedSearchResults.isEmpty)
               _EmptyStateCard(
                 icon: Icons.person_search_outlined,
                 title: 'No matching users',
@@ -675,7 +764,7 @@ class _PeopleTabState extends State<_PeopleTab> {
                 onAction: _clearSearch,
               )
             else
-              ...searchResults.map(
+              ...mergedSearchResults.map(
                 (profile) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _PersonTile(

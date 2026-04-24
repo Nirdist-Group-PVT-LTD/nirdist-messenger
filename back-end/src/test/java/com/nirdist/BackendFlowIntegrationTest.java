@@ -279,6 +279,40 @@ class BackendFlowIntegrationTest {
                 assertThat(searchProfiles("alice", alice.vId())).isEmpty();
         }
 
+                @Test
+                void profileSearchMatchesIdentifiersAndSingleWordQueries() throws Exception {
+                        ProfileResponse alice = createUser(
+                                        "alice-identifiers-token",
+                                        firebaseUser("firebase-identifiers-alice", "+1 (555) 400-0001"),
+                                        "alice.identifiers",
+                                        "Alice Identifiers",
+                                        "alice.identifiers@example.com"
+                        ).profile();
+                        ProfileResponse bob = createUser(
+                                        "bob-identifiers-token",
+                                        firebaseUser("firebase-identifiers-bob", "+1 (555) 400-0002"),
+                                        "bob.identifiers",
+                                        "Bob Identifiers",
+                                        "bob.identifiers@example.com"
+                        ).profile();
+
+                        assertThat(searchProfiles(alice.vId().toString(), bob.vId()))
+                                        .extracting(ProfileResponse::vId)
+                                        .containsExactly(alice.vId());
+
+                        assertThat(searchProfiles("4000001", bob.vId()))
+                                        .extracting(ProfileResponse::vId)
+                                        .containsExactly(alice.vId());
+
+                        assertThat(searchProfiles("alice", bob.vId()))
+                                        .extracting(ProfileResponse::vId)
+                                        .containsExactly(alice.vId());
+
+                        assertThat(searchProfiles("identifiers", bob.vId()))
+                                        .extracting(ProfileResponse::vId)
+                                        .containsExactly(alice.vId());
+                }
+
             @Test
             void profileDirectoryListsEveryoneExceptSelf() throws Exception {
                 ProfileResponse alice = createUser(

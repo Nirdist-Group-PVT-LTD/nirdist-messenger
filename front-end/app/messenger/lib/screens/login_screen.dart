@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../state/session_controller.dart';
 import '../widgets/app_logo.dart';
 
+enum _AuthMode { login, signup }
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -12,49 +14,64 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _phoneController = TextEditingController();
+  final GlobalKey<FormState> _loginFormKey = GlobalKey<FormState>();
+  final GlobalKey<FormState> _signupFormKey = GlobalKey<FormState>();
+
+  final TextEditingController _loginPhoneController = TextEditingController();
+  final TextEditingController _signupPhoneController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _displayNameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
 
-  bool _isSigningIn = false;
+  _AuthMode _authMode = _AuthMode.login;
+  bool _isSubmitting = false;
   String? _statusMessage;
   String? _localErrorMessage;
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _loginPhoneController.dispose();
+    _signupPhoneController.dispose();
     _usernameController.dispose();
     _displayNameController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.sizeOf(context).width >= 980;
-    final loginContent = isWide
+    final authCard = _AuthCard(
+      authMode: _authMode,
+      loginFormKey: _loginFormKey,
+      signupFormKey: _signupFormKey,
+      loginPhoneController: _loginPhoneController,
+      signupPhoneController: _signupPhoneController,
+      usernameController: _usernameController,
+      displayNameController: _displayNameController,
+      emailController: _emailController,
+      isSubmitting: _isSubmitting,
+      statusMessage: _statusMessage,
+      localErrorMessage: _localErrorMessage,
+      onModeChanged: _handleModeChanged,
+      onSubmit: _submit,
+      validatePhoneNumber: _validatePhoneNumber,
+      validateUsername: _validateUsername,
+      validateDisplayName: _validateDisplayName,
+      validateEmail: _validateEmail,
+    );
+
+    final content = isWide
         ? Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Expanded(
+              const Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(right: 18),
-                  child: const _HeroPanel(),
+                  padding: EdgeInsets.only(right: 18),
+                  child: _HeroPanel(),
                 ),
               ),
-              Expanded(
-                child: _LoginCard(
-                  formKey: _formKey,
-                  phoneController: _phoneController,
-                  usernameController: _usernameController,
-                  displayNameController: _displayNameController,
-                  isSigningIn: _isSigningIn,
-                  statusMessage: _statusMessage,
-                  localErrorMessage: _localErrorMessage,
-                  onSignIn: _signIn,
-                  validatePhoneNumber: _validatePhoneNumber,
-                ),
-              ),
+              Expanded(child: authCard),
             ],
           )
         : Column(
@@ -62,17 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
             children: <Widget>[
               const _HeroPanel(),
               const SizedBox(height: 18),
-              _LoginCard(
-                formKey: _formKey,
-                phoneController: _phoneController,
-                usernameController: _usernameController,
-                displayNameController: _displayNameController,
-                isSigningIn: _isSigningIn,
-                statusMessage: _statusMessage,
-                localErrorMessage: _localErrorMessage,
-                onSignIn: _signIn,
-                validatePhoneNumber: _validatePhoneNumber,
-              ),
+              authCard,
             ],
           );
 
@@ -86,44 +93,64 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1120),
-                  child: loginContent,
-                  ),
+                  child: content,
                 ),
               ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _signIn() async {
-    if (!(_formKey.currentState?.validate() ?? false)) {
+  void _handleModeChanged(_AuthMode mode) {
+    if (_authMode == mode) {
       return;
     }
 
-    final phoneNumber = _normalizedPhoneNumber();
+    context.read<SessionController>().clearError();
+    setState(() {
+      _authMode = mode;
+      _localErrorMessage = null;
+      _statusMessage = null;
+    });
+  }
+
+  Future<void> _submit() async {
+    final activeForm = _authMode == _AuthMode.login ? _loginFormKey : _signupFormKey;
+    if (!(activeForm.currentState?.validate() ?? false)) {
+      return;
+    }
+
     final sessionController = context.read<SessionController>();
     sessionController.clearError();
     FocusScope.of(context).unfocus();
 
     setState(() {
-      _isSigningIn = true;
+      _isSubmitting = true;
       _localErrorMessage = null;
-      _statusMessage = 'Signing you in with $phoneNumber...';
+      _statusMessage = _authMode == _AuthMode.login
+          ? 'Checking your phone number and opening your account...'
+          : 'Creating your profile and connecting to the messenger backend...';
     });
 
-    final success = await sessionController.signIn(
-      phoneNumber: phoneNumber,
-      username: _trimmedOrNull(_usernameController.text),
-      displayName: _trimmedOrNull(_displayNameController.text),
-    );
+    final success = _authMode == _AuthMode.login
+        ? await sessionController.signIn(
+            phoneNumber: _normalizedPhoneNumber(_loginPhoneController.text),
+          )
+        : await sessionController.signUp(
+            phoneNumber: _normalizedPhoneNumber(_signupPhoneController.text),
+            username: _usernameController.text.trim(),
+            displayName: _displayNameController.text.trim(),
+            email: _trimmedOrNull(_emailController.text),
+          );
 
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _isSigningIn = false;
+      _isSubmitting = false;
     });
 
     if (success) {
@@ -131,7 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     setState(() {
-      _localErrorMessage = sessionController.errorMessage ?? 'Unable to sign in.';
+      _localErrorMessage = sessionController.errorMessage ?? 'Unable to continue right now.';
       _statusMessage = null;
     });
   }
@@ -141,8 +168,8 @@ class _LoginScreenState extends State<LoginScreen> {
     return trimmed.isEmpty ? null : trimmed;
   }
 
-  String _normalizedPhoneNumber() {
-    return _phoneController.text.trim().replaceAll(RegExp(r'[\s().-]'), '');
+  String _normalizedPhoneNumber(String value) {
+    return value.trim().replaceAll(RegExp(r'[\s().-]'), '');
   }
 
   String? _validatePhoneNumber(String? value) {
@@ -151,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return 'Phone number is required.';
     }
 
-    final normalized = trimmed.replaceAll(RegExp(r'[\s().-]'), '');
+    final normalized = _normalizedPhoneNumber(trimmed);
     if (!RegExp(r'^\+?[0-9]{8,15}$').hasMatch(normalized)) {
       return 'Use an international phone number like +15550000000.';
     }
@@ -159,6 +186,44 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
+  String? _validateUsername(String? value) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return 'Username is required for signup.';
+    }
+
+    if (!RegExp(r'^[a-zA-Z0-9._-]{3,24}$').hasMatch(trimmed)) {
+      return 'Use 3-24 letters, numbers, dots, dashes, or underscores.';
+    }
+
+    return null;
+  }
+
+  String? _validateDisplayName(String? value) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return 'Display name is required for signup.';
+    }
+
+    if (trimmed.length < 2) {
+      return 'Display name must be at least 2 characters.';
+    }
+
+    return null;
+  }
+
+  String? _validateEmail(String? value) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(trimmed)) {
+      return 'Enter a valid email address or leave it empty.';
+    }
+
+    return null;
+  }
 }
 
 class _HeroPanel extends StatelessWidget {
@@ -178,28 +243,37 @@ class _HeroPanel extends StatelessWidget {
         children: <Widget>[
           const AppLogo(size: 88, padding: 18),
           const SizedBox(height: 18),
-          Text('Login with your phone', style: Theme.of(context).textTheme.headlineLarge),
+          Text('Communication starts here', style: Theme.of(context).textTheme.headlineLarge),
           const SizedBox(height: 8),
           Text(
-            'Verification is paused for now. Use your phone number to continue and the backend will create or load your account before issuing the JWT.',
+            'Log in with your phone number or create a new account. The app talks directly to your Spring Boot backend and stores the returned JWT securely for the messenger experience.',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 18),
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: <Widget>[
-              _StatusChip(label: 'No SMS', color: const Color(0xFFE4572E)),
-              _StatusChip(label: 'JWT backend', color: const Color(0xFFFF9F1C)),
-              _StatusChip(label: 'Temporary flow', color: const Color(0xFF38B6FF)),
+            children: const <Widget>[
+              _StatusChip(label: 'Phone auth', color: Color(0xFFE4572E)),
+              _StatusChip(label: 'JWT session', color: Color(0xFFFF9F1C)),
+              _StatusChip(label: 'Backend connected', color: Color(0xFF38B6FF)),
             ],
           ),
           const SizedBox(height: 20),
-          const _FeatureLine(icon: Icons.lock_clock_outlined, title: 'Secure session storage'),
+          const _FeatureLine(
+            icon: Icons.person_add_alt_1_rounded,
+            title: 'Signup sends username, display name, and optional email',
+          ),
           const SizedBox(height: 10),
-          const _FeatureLine(icon: Icons.sms_failed_outlined, title: 'No verification step'),
+          const _FeatureLine(
+            icon: Icons.login_rounded,
+            title: 'Login keeps the flow fast with just the phone number',
+          ),
           const SizedBox(height: 10),
-          const _FeatureLine(icon: Icons.hub_outlined, title: 'Spring Boot creates or loads the account'),
+          const _FeatureLine(
+            icon: Icons.security_rounded,
+            title: 'Session token is saved locally and reused on next launch',
+          ),
         ],
       ),
     );
@@ -299,33 +373,49 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-class _LoginCard extends StatelessWidget {
-  const _LoginCard({
-    required this.formKey,
-    required this.phoneController,
+class _AuthCard extends StatelessWidget {
+  const _AuthCard({
+    required this.authMode,
+    required this.loginFormKey,
+    required this.signupFormKey,
+    required this.loginPhoneController,
+    required this.signupPhoneController,
     required this.usernameController,
     required this.displayNameController,
-    required this.isSigningIn,
+    required this.emailController,
+    required this.isSubmitting,
     required this.statusMessage,
     required this.localErrorMessage,
-    required this.onSignIn,
+    required this.onModeChanged,
+    required this.onSubmit,
     required this.validatePhoneNumber,
+    required this.validateUsername,
+    required this.validateDisplayName,
+    required this.validateEmail,
   });
 
-  final GlobalKey<FormState> formKey;
-  final TextEditingController phoneController;
+  final _AuthMode authMode;
+  final GlobalKey<FormState> loginFormKey;
+  final GlobalKey<FormState> signupFormKey;
+  final TextEditingController loginPhoneController;
+  final TextEditingController signupPhoneController;
   final TextEditingController usernameController;
   final TextEditingController displayNameController;
-  final bool isSigningIn;
+  final TextEditingController emailController;
+  final bool isSubmitting;
   final String? statusMessage;
   final String? localErrorMessage;
-  final Future<void> Function() onSignIn;
+  final ValueChanged<_AuthMode> onModeChanged;
+  final Future<void> Function() onSubmit;
   final String? Function(String?) validatePhoneNumber;
+  final String? Function(String?) validateUsername;
+  final String? Function(String?) validateDisplayName;
+  final String? Function(String?) validateEmail;
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<SessionController>();
-    final isBusy = isSigningIn || controller.isSubmitting;
+    final isBusy = isSubmitting || controller.isSubmitting;
 
     return Container(
       decoration: BoxDecoration(
@@ -340,110 +430,232 @@ class _LoginCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Form(
-        key: formKey,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Text(
-                'Use your phone number',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Verification is off for now. Enter your phone number and the backend will create or load your account directly.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 18),
-              TextFormField(
-                controller: phoneController,
-                textInputAction: TextInputAction.next,
-                keyboardType: TextInputType.phone,
-                autofillHints: const <String>[AutofillHints.telephoneNumber],
-                decoration: const InputDecoration(
-                  labelText: 'Phone number',
-                  hintText: '+15550000000',
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              'Account access',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'New phone numbers are created automatically by the backend. Existing numbers open the same account and return your messenger JWT.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 18),
+            SegmentedButton<_AuthMode>(
+              segments: const <ButtonSegment<_AuthMode>>[
+                ButtonSegment<_AuthMode>(
+                  value: _AuthMode.login,
+                  icon: Icon(Icons.login_rounded),
+                  label: Text('Login'),
                 ),
-                validator: validatePhoneNumber,
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: TextFormField(
-                      controller: usernameController,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Username',
-                        hintText: 'optional for signup',
-                      ),
+                ButtonSegment<_AuthMode>(
+                  value: _AuthMode.signup,
+                  icon: Icon(Icons.person_add_alt_1_rounded),
+                  label: Text('Signup'),
+                ),
+              ],
+              selected: <_AuthMode>{authMode},
+              onSelectionChanged: (selection) => onModeChanged(selection.first),
+            ),
+            const SizedBox(height: 18),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              child: authMode == _AuthMode.login
+                  ? _LoginForm(
+                      key: const ValueKey<String>('login-form'),
+                      formKey: loginFormKey,
+                      phoneController: loginPhoneController,
+                      validatePhoneNumber: validatePhoneNumber,
+                    )
+                  : _SignupForm(
+                      key: const ValueKey<String>('signup-form'),
+                      formKey: signupFormKey,
+                      phoneController: signupPhoneController,
+                      usernameController: usernameController,
+                      displayNameController: displayNameController,
+                      emailController: emailController,
+                      validatePhoneNumber: validatePhoneNumber,
+                      validateUsername: validateUsername,
+                      validateDisplayName: validateDisplayName,
+                      validateEmail: validateEmail,
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: displayNameController,
-                      textInputAction: TextInputAction.done,
-                      decoration: const InputDecoration(
-                        labelText: 'Display name',
-                        hintText: 'optional for signup',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
+            ),
+            const SizedBox(height: 18),
+            if (statusMessage != null) ...<Widget>[
               Text(
-                'Optional profile details are used only if the backend creates a new account.',
+                statusMessage!,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
-              const SizedBox(height: 20),
-              if (statusMessage != null) ...<Widget>[
-                Text(
-                  statusMessage!,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 12),
-              ],
-              if (localErrorMessage != null) ...<Widget>[
-                Text(
-                  localErrorMessage!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-                const SizedBox(height: 12),
-              ],
-              if (controller.errorMessage != null) ...<Widget>[
-                Text(
-                  controller.errorMessage!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-                const SizedBox(height: 12),
-              ],
-              if (isBusy) ...<Widget>[
-                const LinearProgressIndicator(minHeight: 2),
-                const SizedBox(height: 12),
-              ],
-              FilledButton(
-                onPressed: isBusy ? null : onSignIn,
-                child: isBusy
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Login'),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Backend: ${controller.apiBaseUrl}',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              const SizedBox(height: 12),
             ],
-          ),
+            if (localErrorMessage != null) ...<Widget>[
+              Text(
+                localErrorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (controller.errorMessage != null) ...<Widget>[
+              Text(
+                controller.errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (isBusy) ...<Widget>[
+              const LinearProgressIndicator(minHeight: 2),
+              const SizedBox(height: 12),
+            ],
+            FilledButton(
+              onPressed: isBusy ? null : onSubmit,
+              child: isBusy
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(authMode == _AuthMode.login ? 'Login' : 'Create account'),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Backend: ${controller.apiBaseUrl}',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _LoginForm extends StatelessWidget {
+  const _LoginForm({
+    super.key,
+    required this.formKey,
+    required this.phoneController,
+    required this.validatePhoneNumber,
+  });
+
+  final GlobalKey<FormState> formKey;
+  final TextEditingController phoneController;
+  final String? Function(String?) validatePhoneNumber;
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          TextFormField(
+            controller: phoneController,
+            textInputAction: TextInputAction.done,
+            keyboardType: TextInputType.phone,
+            autofillHints: const <String>[AutofillHints.telephoneNumber],
+            decoration: const InputDecoration(
+              labelText: 'Phone number',
+              hintText: '+15550000000',
+            ),
+            validator: validatePhoneNumber,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Use the phone number already tied to your messenger profile. If the backend has never seen it before, it will create a new account.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SignupForm extends StatelessWidget {
+  const _SignupForm({
+    super.key,
+    required this.formKey,
+    required this.phoneController,
+    required this.usernameController,
+    required this.displayNameController,
+    required this.emailController,
+    required this.validatePhoneNumber,
+    required this.validateUsername,
+    required this.validateDisplayName,
+    required this.validateEmail,
+  });
+
+  final GlobalKey<FormState> formKey;
+  final TextEditingController phoneController;
+  final TextEditingController usernameController;
+  final TextEditingController displayNameController;
+  final TextEditingController emailController;
+  final String? Function(String?) validatePhoneNumber;
+  final String? Function(String?) validateUsername;
+  final String? Function(String?) validateDisplayName;
+  final String? Function(String?) validateEmail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          TextFormField(
+            controller: phoneController,
+            textInputAction: TextInputAction.next,
+            keyboardType: TextInputType.phone,
+            autofillHints: const <String>[AutofillHints.telephoneNumber],
+            decoration: const InputDecoration(
+              labelText: 'Phone number',
+              hintText: '+15550000000',
+            ),
+            validator: validatePhoneNumber,
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: usernameController,
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(
+              labelText: 'Username',
+              hintText: 'abhi.chat',
+            ),
+            validator: validateUsername,
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: displayNameController,
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(
+              labelText: 'Display name',
+              hintText: 'Abhishek',
+            ),
+            validator: validateDisplayName,
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: emailController,
+            textInputAction: TextInputAction.done,
+            keyboardType: TextInputType.emailAddress,
+            autofillHints: const <String>[AutofillHints.email],
+            decoration: const InputDecoration(
+              labelText: 'Email (optional)',
+              hintText: 'name@example.com',
+            ),
+            validator: validateEmail,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'These details are sent to the backend when it creates your communication profile. If the phone number already exists, the backend will log you into that account instead.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ),
     );
   }

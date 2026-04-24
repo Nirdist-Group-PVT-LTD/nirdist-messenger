@@ -249,8 +249,17 @@ public class SocialGraphService {
             getProfileOrThrow(normalizedExcludeUserId);
         }
 
-        return profileRepository.searchProfiles(normalizedQuery, normalizedExcludeUserId).stream()
-                .limit(20)
+        List<String> tokens = tokenizeSearchQuery(normalizedQuery);
+
+        return profileRepository.findAll().stream()
+            .filter(profile -> normalizedExcludeUserId == null || !Objects.equals(profile.getVId(), normalizedExcludeUserId))
+            .filter(profile -> matchesProfileSearch(profile, normalizedQuery, tokens))
+            .sorted(Comparator
+                .comparing((Profile profile) -> searchRank(profile, normalizedQuery, tokens))
+                .thenComparing(Profile::getDisplayName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                .thenComparing(Profile::getUsername, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                .thenComparing(Profile::getVId))
+            .limit(20)
                 .map(this::toProfileResponse)
                 .toList();
     }
@@ -421,6 +430,129 @@ public class SocialGraphService {
                 profile.getCreatedAt(),
                 profile.getUpdatedAt()
         );
+    }
+
+    private boolean matchesProfileSearch(Profile profile, String normalizedQuery, List<String> tokens) {
+        String searchableText = buildSearchableProfileText(profile);
+
+        if (searchableText.contains(normalizedQuery)) {
+            return true;
+        }
+
+        String queryDigits = digitsOnly(normalizedQuery);
+        if (!queryDigits.isBlank()) {
+            if (profile.getVId() != null && profile.getVId().toString().equals(queryDigits)) {
+                return true;
+            }
+
+            if (digitsOnly(profile.getPhoneNumber()).contains(queryDigits)) {
+                return true;
+            }
+        }
+
+        if (tokens.isEmpty()) {
+            return false;
+        }
+
+        for (String token : tokens) {
+            if (searchableText.contains(token)) {
+                continue;
+            }
+
+            String tokenDigits = digitsOnly(token);
+            if (!tokenDigits.isBlank() && profile.getVId() != null && profile.getVId().toString().equals(tokenDigits)) {
+                continue;
+            }
+
+            if (!tokenDigits.isBlank() && digitsOnly(profile.getPhoneNumber()).contains(tokenDigits)) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private int searchRank(Profile profile, String normalizedQuery, List<String> tokens) {
+        String searchableText = buildSearchableProfileText(profile);
+        if (searchableText.equals(normalizedQuery)) {
+            return 0;
+        }
+
+        String queryDigits = digitsOnly(normalizedQuery);
+        if (!queryDigits.isBlank()) {
+            if (profile.getVId() != null && profile.getVId().toString().equals(queryDigits)) {
+                return 0;
+            }
+
+            if (digitsOnly(profile.getPhoneNumber()).equals(queryDigits)) {
+                return 1;
+            }
+        }
+
+        if (!tokens.isEmpty() && tokens.size() == 1) {
+            String token = tokens.get(0);
+            if (searchableText.startsWith(token)) {
+                return 2;
+            }
+        }
+
+        return 3;
+    }
+
+    private List<String> tokenizeSearchQuery(String normalizedQuery) {
+        return java.util.Arrays.stream(normalizedQuery.split("\\s+"))
+                .map(this::trimToNull)
+                .filter(Objects::nonNull)
+                .map(String::toLowerCase)
+                .toList();
+    }
+
+    private String buildSearchableProfileText(Profile profile) {
+        StringBuilder text = new StringBuilder();
+        appendSearchablePart(text, profile.getVId() == null ? null : profile.getVId().toString());
+        appendSearchablePart(text, profile.getDisplayName());
+        appendSearchablePart(text, profile.getUsername());
+        appendSearchablePart(text, profile.getEmail());
+        appendSearchablePart(text, profile.getPhoneNumber());
+        appendSearchablePart(text, profile.getFirebaseUid());
+        return text.toString();
+    }
+
+    private void appendSearchablePart(StringBuilder text, String value) {
+        String normalized = normalizeSearchText(value);
+        if (normalized.isEmpty()) {
+            return;
+        }
+
+        if (text.length() > 0) {
+            text.append(' ');
+        }
+
+        text.append(normalized);
+    }
+
+    private String normalizeSearchText(String value) {
+        String trimmed = trimToNull(value);
+        return trimmed == null ? "" : trimmed.toLowerCase();
+    }
+
+    private String digitsOnly(String value) {
+        String trimmed = trimToNull(value);
+        if (trimmed == null) {
+            return "";
+        }
+
+        StringBuilder digits = new StringBuilder();
+        for (int index = 0; index < trimmed.length(); index++) {
+            char current = trimmed.charAt(index);
+            if (Character.isDigit(current)) {
+                digits.append(current);
+            }
+        }
+
+        return digits.toString();
     }
 
     private String normalizePhoneNumber(String value) {

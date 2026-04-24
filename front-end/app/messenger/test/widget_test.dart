@@ -8,6 +8,7 @@ import 'package:messenger/models/chat_message_summary.dart';
 import 'package:messenger/models/chat_room_summary.dart';
 import 'package:messenger/models/profile_summary.dart';
 import 'package:messenger/screens/messenger_shell.dart';
+import 'package:messenger/screens/user_finder_screen.dart';
 import 'package:messenger/screens/login_screen.dart';
 import 'package:messenger/services/auth_api_client.dart';
 import 'package:messenger/services/messenger_api_client.dart';
@@ -42,6 +43,23 @@ class _FakeAuthApiClient extends AuthApiClient {
         createdAt: null,
         updatedAt: null,
       ),
+    );
+  }
+
+  @override
+  Future<ProfileSummary> lookupPhoneNumber(String phoneNumber) async {
+    return const ProfileSummary(
+      vId: 5,
+      username: 'nepal.phone',
+      displayName: 'Nepal Phone User',
+      email: 'nepal.phone@example.com',
+      phoneNumber: '+9779821663633',
+      firebaseUid: 'firebase-nepal-phone',
+      avatarUrl: null,
+      bio: null,
+      phoneVerifiedAt: null,
+      createdAt: null,
+      updatedAt: null,
     );
   }
 }
@@ -174,6 +192,24 @@ class _FakeMessengerApiClient extends MessengerApiClient {
       ];
     }
 
+    if (normalizedQuery.contains('9779821663633') || normalizedQuery.contains('9821663633')) {
+      return <ProfileSummary>[
+        const ProfileSummary(
+          vId: 5,
+          username: 'nepal.phone',
+          displayName: 'Nepal Phone User',
+          email: 'nepal.phone@example.com',
+          phoneNumber: '+9779821663633',
+          firebaseUid: 'firebase-nepal-phone',
+          avatarUrl: null,
+          bio: null,
+          phoneVerifiedAt: null,
+          createdAt: null,
+          updatedAt: null,
+        ),
+      ];
+    }
+
     if (normalizedQuery.contains('buddy')) {
       return <ProfileSummary>[
         const ProfileSummary(
@@ -252,7 +288,38 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(LoginScreen), findsOneWidget);
-    expect(find.text('Login'), findsOneWidget);
+    expect(find.text('Login'), findsWidgets);
+    expect(find.text('Signup'), findsOneWidget);
+  });
+
+  testWidgets('switches to the signup form with profile fields', (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final sessionController = SessionController(
+      authApiClient: _FakeAuthApiClient(),
+      secureSessionStore: _FakeSecureSessionStore(),
+    );
+
+    await sessionController.bootstrap();
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: sessionController,
+        child: const NirdistApp(),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Signup'));
+    await tester.tap(find.text('Signup'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Create account'), findsOneWidget);
+    expect(find.text('Username'), findsOneWidget);
+    expect(find.text('Display name'), findsOneWidget);
+    expect(find.text('Email (optional)'), findsOneWidget);
   });
 
   testWidgets('renders the backend-backed messenger shell', (WidgetTester tester) async {
@@ -444,5 +511,99 @@ void main() {
 
     expect(find.text('Request Buddy'), findsWidgets);
     expect(find.text('Test Friend'), findsNothing);
+  });
+
+  testWidgets('opens the dedicated user finder and searches by phone number', (WidgetTester tester) async {
+    const profile = ProfileSummary(
+      vId: 1,
+      username: 'test.user',
+      displayName: 'Test User',
+      email: 'test@example.com',
+      phoneNumber: '+15550000000',
+      firebaseUid: 'firebase-test-user',
+      avatarUrl: null,
+      bio: null,
+      phoneVerifiedAt: null,
+      createdAt: null,
+      updatedAt: null,
+    );
+
+    const session = AuthSession(
+      token: 'token-1234567890',
+      profile: profile,
+      message: 'Login successful',
+      created: false,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: UserFinderScreen(
+          session: session,
+          apiBaseUrl: 'http://localhost:8080/api',
+          apiClient: _FakeMessengerApiClient(),
+          authApiClient: _FakeAuthApiClient(),
+          friendIds: const <int>{2},
+          onStartConversation: (_) async {},
+          onSendFriendRequest: (_) async {},
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Search now'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nepal Phone User'), findsWidgets);
+    expect(find.text('+9779821663633'), findsWidgets);
+    expect(find.text('Request'), findsWidgets);
+  });
+
+  testWidgets('falls back to phone lookup when social search is unavailable', (WidgetTester tester) async {
+    const profile = ProfileSummary(
+      vId: 1,
+      username: 'test.user',
+      displayName: 'Test User',
+      email: 'test@example.com',
+      phoneNumber: '+15550000000',
+      firebaseUid: 'firebase-test-user',
+      avatarUrl: null,
+      bio: null,
+      phoneVerifiedAt: null,
+      createdAt: null,
+      updatedAt: null,
+    );
+
+    const session = AuthSession(
+      token: 'token-1234567890',
+      profile: profile,
+      message: 'Login successful',
+      created: false,
+    );
+
+    final messengerApiClient = _FakeMessengerApiClient();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: UserFinderScreen(
+          session: session,
+          apiBaseUrl: 'http://localhost:8080/api',
+          apiClient: messengerApiClient,
+          authApiClient: _FakeAuthApiClient(),
+          friendIds: const <int>{},
+          onStartConversation: (_) async {},
+          onSendFriendRequest: (_) async {},
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '+9779821663633');
+    await tester.tap(find.text('Search now'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nepal Phone User'), findsWidgets);
+    expect(find.text('+9779821663633'), findsWidgets);
   });
 }

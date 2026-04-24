@@ -28,8 +28,15 @@ class SessionController extends ChangeNotifier {
 
   Future<void> bootstrap() async {
     try {
-      _session = await _secureSessionStore.readSession();
-      _errorMessage = null;
+      final storedSession = await _secureSessionStore.readSession();
+      if (_isValidSession(storedSession)) {
+        _session = storedSession;
+        _errorMessage = null;
+      } else {
+        _session = null;
+        await _secureSessionStore.clear();
+        _errorMessage = null;
+      }
     } catch (_) {
       _session = null;
       _errorMessage = 'Unable to load your saved session.';
@@ -40,6 +47,28 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<bool> signIn({
+    required String phoneNumber,
+  }) async {
+    return _authenticateWithPhone(phoneNumber: phoneNumber);
+  }
+
+  Future<bool> signUp({
+    required String phoneNumber,
+    required String username,
+    required String displayName,
+    String? email,
+    String? avatarUrl,
+  }) async {
+    return _authenticateWithPhone(
+      phoneNumber: phoneNumber,
+      username: username,
+      displayName: displayName,
+      email: email,
+      avatarUrl: avatarUrl,
+    );
+  }
+
+  Future<bool> _authenticateWithPhone({
     required String phoneNumber,
     String? username,
     String? displayName,
@@ -62,13 +91,17 @@ class SessionController extends ChangeNotifier {
         email: email,
         avatarUrl: avatarUrl,
       );
+      if (!_isValidSession(session)) {
+        _errorMessage = 'Received an invalid session from backend. Please try again.';
+        return false;
+      }
       _session = session;
       await _secureSessionStore.saveSession(session);
       return true;
     } catch (error) {
       _errorMessage = error is AuthApiException
           ? error.message
-          : 'Unable to sign in. Check the phone login flow and backend URL.';
+          : 'Unable to complete authentication. Check the backend URL and try again.';
       return false;
     } finally {
       _isSubmitting = false;
@@ -90,5 +123,17 @@ class SessionController extends ChangeNotifier {
 
     _errorMessage = null;
     notifyListeners();
+  }
+
+  bool _isValidSession(AuthSession? session) {
+    if (session == null) {
+      return false;
+    }
+
+    if (session.token.trim().isEmpty) {
+      return false;
+    }
+
+    return session.profile.vId > 0;
   }
 }

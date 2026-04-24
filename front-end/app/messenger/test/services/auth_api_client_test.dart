@@ -50,4 +50,32 @@ void main() {
     expect(session.token, 'token-123');
     expect(session.profile.phoneNumber, '+977921663633');
   });
+
+  test('surfaces backend validation messages for failed auth', () async {
+    final client = MockClient((request) async {
+      return http.Response(
+        jsonEncode(<String, dynamic>{
+          'message': 'phone number is required',
+        }),
+        400,
+        headers: <String, String>{'content-type': 'application/json'},
+      );
+    });
+
+    final apiClient = AuthApiClient(
+      client: client,
+      apiBaseUrl: 'https://nirdist-backend.onrender.com/',
+    );
+
+    expect(
+      () => apiClient.exchangePhoneNumber(phoneNumber: ''),
+      throwsA(
+        isA<AuthApiException>().having(
+          (error) => error.message,
+          'message',
+          'phone number is required',
+        ),
+      ),
+    );
+  });
 }

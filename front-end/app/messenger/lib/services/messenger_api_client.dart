@@ -222,7 +222,15 @@ class MessengerApiClient {
       return;
     }
 
-    throw MessengerApiException('$label failed (${response.statusCode}): ${_extractErrorMessage(response.body)}');
+    final requestPath = response.request?.url.path ?? '';
+    final routeHint = _buildRouteHint(response.statusCode, requestPath);
+    final backendMessage = _extractErrorMessage(response.body);
+
+    final message = routeHint == null
+        ? '$label failed (${response.statusCode}): $backendMessage'
+        : '$label failed (${response.statusCode}): $backendMessage $routeHint';
+
+    throw MessengerApiException(message.trim());
   }
 
   String _extractErrorMessage(String body) {
@@ -240,6 +248,22 @@ class MessengerApiClient {
 
     final trimmed = body.trim();
     return trimmed.isEmpty ? 'unknown backend error' : trimmed;
+  }
+
+  String? _buildRouteHint(int statusCode, String requestPath) {
+    if (statusCode != 404) {
+      return null;
+    }
+
+    if (requestPath.contains('/api/social/')) {
+      return 'The deployed backend is missing the social routes. Redeploy the backend service with `SocialController`.';
+    }
+
+    if (requestPath.contains('/api/chat/')) {
+      return 'The deployed backend is missing the chat routes. Redeploy the backend service with `ChatController`.';
+    }
+
+    return null;
   }
 }
 

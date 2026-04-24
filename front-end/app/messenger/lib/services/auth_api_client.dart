@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/auth_session.dart';
+import '../models/profile_summary.dart';
 import 'api_base_url.dart';
 
 class AuthApiClient {
@@ -20,13 +21,26 @@ class AuthApiClient {
       return normalizeApiBaseUrl(configuredBaseUrl);
     }
 
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return normalizeApiBaseUrl('https://nirdist-backend-uctd.onrender.com');
+    if (kDebugMode) {
+      if (kIsWeb) {
+        return normalizeApiBaseUrl('http://127.0.0.1:8080');
+      }
+
+      switch (defaultTargetPlatform) {
+        case TargetPlatform.android:
+          return normalizeApiBaseUrl('http://10.0.2.2:8080');
+        case TargetPlatform.iOS:
+        case TargetPlatform.macOS:
+        case TargetPlatform.windows:
+        case TargetPlatform.linux:
+        case TargetPlatform.fuchsia:
+          return normalizeApiBaseUrl('http://127.0.0.1:8080');
+      }
     }
 
-    return switch (defaultTargetPlatform) {
-      _ => normalizeApiBaseUrl('http://localhost:8080'),
-    };
+    // Default to the deployed backend unless explicitly overridden by dart-define.
+    // This avoids desktop/web builds silently targeting localhost.
+    return normalizeApiBaseUrl('https://nirdist-backend-uctd.onrender.com');
   }
 
   Future<AuthSession> exchangeFirebaseToken({
@@ -88,9 +102,10 @@ class AuthApiClient {
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw AuthApiException(
-        'Backend rejected the direct phone sign-in (${response.statusCode}).',
-      );
+      throw AuthApiException(_extractErrorMessage(
+        response,
+        fallback: 'Backend rejected the direct phone sign-in (${response.statusCode}).',
+      ));
     }
 
     final decodedBody = jsonDecode(response.body);
@@ -101,11 +116,37 @@ class AuthApiClient {
     return AuthSession.fromJson(decodedBody);
   }
 
+  Future<ProfileSummary> lookupPhoneNumber(String phoneNumber) async {
+    final session = await exchangePhoneNumber(phoneNumber: phoneNumber);
+    return session.profile;
+  }
+
   Uri _buildUri(String path) {
     final normalizedBaseUrl = apiBaseUrl.endsWith('/')
         ? apiBaseUrl.substring(0, apiBaseUrl.length - 1)
         : apiBaseUrl;
     return Uri.parse('$normalizedBaseUrl$path');
+  }
+
+  String _extractErrorMessage(http.Response response, {required String fallback}) {
+    try {
+      final decodedBody = jsonDecode(response.body);
+      if (decodedBody is Map<String, dynamic>) {
+        final message = decodedBody['message']?.toString().trim();
+        final error = decodedBody['error']?.toString().trim();
+        final detail = decodedBody['detail']?.toString().trim();
+
+        for (final candidate in <String?>[message, error, detail]) {
+          if (candidate != null && candidate.isNotEmpty) {
+            return candidate;
+          }
+        }
+      }
+    } catch (_) {
+      // Fall back to a generic message when the backend does not return JSON.
+    }
+
+    return fallback;
   }
 }
 
