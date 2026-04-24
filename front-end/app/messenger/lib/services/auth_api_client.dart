@@ -21,26 +21,29 @@ class AuthApiClient {
       return normalizeApiBaseUrl(configuredBaseUrl);
     }
 
+    const deployedBaseUrl = 'https://nirdist-backend-uctd.onrender.com';
+
     if (kDebugMode) {
       if (kIsWeb) {
-        return normalizeApiBaseUrl('http://127.0.0.1:8080');
+        return normalizeApiBaseUrl(deployedBaseUrl);
       }
 
       switch (defaultTargetPlatform) {
         case TargetPlatform.android:
-          return normalizeApiBaseUrl('http://10.0.2.2:8080');
+          // Real-device testing should hit the deployed backend by default.
+          return normalizeApiBaseUrl(deployedBaseUrl);
         case TargetPlatform.iOS:
         case TargetPlatform.macOS:
         case TargetPlatform.windows:
         case TargetPlatform.linux:
         case TargetPlatform.fuchsia:
-          return normalizeApiBaseUrl('http://127.0.0.1:8080');
+          return normalizeApiBaseUrl(deployedBaseUrl);
       }
     }
 
     // Default to the deployed backend unless explicitly overridden by dart-define.
     // This avoids desktop/web builds silently targeting localhost.
-    return normalizeApiBaseUrl('https://nirdist-backend-uctd.onrender.com');
+    return normalizeApiBaseUrl(deployedBaseUrl);
   }
 
   Future<AuthSession> exchangeFirebaseToken({
