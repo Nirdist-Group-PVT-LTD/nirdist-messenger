@@ -4,7 +4,10 @@ import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.StringJoiner;
 
 public final class DatabaseUrlNormalizer {
 
@@ -34,7 +37,7 @@ public final class DatabaseUrlNormalizer {
 
         String path = trimToNull(uri.getRawPath());
         String databasePath = path == null ? "" : path;
-        String query = trimToNull(uri.getRawQuery());
+        String query = sanitizeQueryForJdbc(trimToNull(uri.getRawQuery()));
 
         String jdbcUrl = buildJdbcUrl(host, uri.getPort(), databasePath, query);
         Credentials credentials = parseCredentials(uri.getRawUserInfo());
@@ -68,6 +71,49 @@ public final class DatabaseUrlNormalizer {
         String username = decode(parts[0]);
         String password = parts.length > 1 ? decode(parts[1]) : null;
         return new Credentials(trimToNull(username), trimToNull(password));
+    }
+
+    private static String sanitizeQueryForJdbc(String rawQuery) {
+        if (rawQuery == null) {
+            return "sslmode=require";
+        }
+
+        Map<String, String> params = new LinkedHashMap<>();
+        String[] pairs = rawQuery.split("&");
+        for (String pair : pairs) {
+            String token = trimToNull(pair);
+            if (token == null) {
+                continue;
+            }
+
+            int separator = token.indexOf('=');
+            String rawKey = separator >= 0 ? token.substring(0, separator) : token;
+            String rawValue = separator >= 0 ? token.substring(separator + 1) : "";
+            String key = trimToNull(rawKey);
+            if (key == null) {
+                continue;
+            }
+
+            String normalizedKey = key.toLowerCase();
+            if ("channel_binding".equals(normalizedKey) || "channelbinding".equals(normalizedKey)) {
+                continue;
+            }
+
+            params.put(key, rawValue);
+        }
+
+        boolean hasSslMode = params.keySet().stream().anyMatch(k -> "sslmode".equalsIgnoreCase(k));
+        if (!hasSslMode) {
+            params.put("sslmode", "require");
+        }
+
+        if (params.isEmpty()) {
+            return null;
+        }
+
+        StringJoiner joiner = new StringJoiner("&");
+        params.forEach((k, v) -> joiner.add(v.isEmpty() ? k : k + "=" + v));
+        return joiner.toString();
     }
 
     private static String decode(String value) {

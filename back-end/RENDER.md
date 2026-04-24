@@ -43,3 +43,4 @@ docker run --rm -p 8080:8080 \
 - Neon connection strings work through `JDBC_DATABASE_URL`.
 - If the connection string already contains the username and password, the backend extracts them automatically.
 - You can also provide `DB_USER` and `DB_PASSWORD` separately when you do not want credentials embedded in the URL.
+- If a URL includes `channel_binding=require`, the backend strips that option for JDBC compatibility with pooled endpoints.
