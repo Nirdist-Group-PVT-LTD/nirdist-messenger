@@ -9,35 +9,9 @@ services:
     dockerContext: .
     healthCheckPath: /api/health
     envVars:
-      - key: DB_HOST
-        fromDatabase:
-          name: nirdist-db
-          property: host
-      - key: DB_PORT
-        fromDatabase:
-          name: nirdist-db
-          property: port
-      - key: DB_NAME
-        fromDatabase:
-          name: nirdist-db
-          property: databaseName
-      - key: DB_USER
-        fromDatabase:
-          name: nirdist-db
-          property: user
-      - key: DB_PASSWORD
-        fromDatabase:
-          name: nirdist-db
-          property: password
+      - key: JDBC_DATABASE_URL
+        value: ${NEON_CONNECTION_STRING}
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRATION
         value: "86400000"
-
-databases:
-  - name: nirdist-db
-    plan: free
-    databaseName: nirdist
-    user: nirdist_user
-    postgresMajorVersion: "15"
-    region: oregon
