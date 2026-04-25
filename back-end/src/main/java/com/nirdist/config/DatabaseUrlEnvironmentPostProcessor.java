@@ -3,13 +3,14 @@ package com.nirdist.config;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.core.env.PropertySource;
 
 import com.nirdist.util.DatabaseUrlNormalizer;
 
@@ -21,10 +22,10 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         String explicitDatabaseUrlSource = firstConfiguredDatabaseUrlSource(environment);
         String explicitDatabaseUrl = resolvePlaceholders(environment,
-                explicitDatabaseUrlSource == null ? null : environment.getProperty(explicitDatabaseUrlSource));
+                explicitDatabaseUrlSource == null ? null : rawProperty(environment, explicitDatabaseUrlSource));
         String configuredUrl = resolvePlaceholders(environment, firstNonBlank(
             explicitDatabaseUrl,
-            environment.getProperty("SPRING_DATASOURCE_URL")
+            rawProperty(environment, "SPRING_DATASOURCE_URL")
         ));
 
         DatabaseUrlNormalizer.NormalizedDatabaseConfig normalizedConfig;
@@ -103,15 +104,26 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
     }
 
     private String firstConfiguredDatabaseUrlSource(ConfigurableEnvironment environment) {
-        if (firstNonBlank(environment.getProperty("JDBC_DATABASE_URL")) != null) {
-            return "JDBC_DATABASE_URL";
-        }
-        if (firstNonBlank(environment.getProperty("NEON_CONNECTION_STRING")) != null) {
+        if (firstNonBlank(rawProperty(environment, "NEON_CONNECTION_STRING")) != null) {
             return "NEON_CONNECTION_STRING";
         }
-        if (firstNonBlank(environment.getProperty("DATABASE_URL")) != null) {
+        if (firstNonBlank(rawProperty(environment, "JDBC_DATABASE_URL")) != null) {
+            return "JDBC_DATABASE_URL";
+        }
+        if (firstNonBlank(rawProperty(environment, "DATABASE_URL")) != null) {
             return "DATABASE_URL";
         }
+        return null;
+    }
+
+    private String rawProperty(ConfigurableEnvironment environment, String name) {
+        for (PropertySource<?> propertySource : environment.getPropertySources()) {
+            Object value = propertySource.getProperty(name);
+            if (value != null) {
+                return value.toString();
+            }
+        }
+
         return null;
     }
 
@@ -145,12 +157,17 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
             return null;
         }
 
-        String resolved = environment.resolvePlaceholders(value);
-        if (resolved.contains("${")) {
-            // Skip unresolved placeholders (for example when a Render secret is missing).
+        try {
+            String resolved = environment.resolvePlaceholders(value);
+            if (resolved.contains("${")) {
+                // Skip unresolved placeholders (for example when a Render secret is missing).
+                return null;
+            }
+
+            return resolved;
+        } catch (IllegalArgumentException ignored) {
+            // Spring throws on unresolved placeholders when no fallback exists.
             return null;
         }
-
-        return resolved;
     }
 }

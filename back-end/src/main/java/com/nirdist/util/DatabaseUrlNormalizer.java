@@ -41,7 +41,7 @@ public final class DatabaseUrlNormalizer {
             return new NormalizedDatabaseConfig(trimmed, null, null);
         }
 
-        String host = normalizeHost(trimToNull(uri.getHost()));
+        String host = trimToNull(uri.getHost());
         if (host == null) {
             throw new IllegalArgumentException("Database URL is missing a host");
         }
@@ -126,25 +126,6 @@ public final class DatabaseUrlNormalizer {
         StringJoiner joiner = new StringJoiner("&");
         params.forEach((k, v) -> joiner.add(v.isEmpty() ? k : k + "=" + v));
         return joiner.toString();
-    }
-
-    private static String normalizeHost(String host) {
-        if (host == null) {
-            return null;
-        }
-
-        // Some Neon pooled hosts can fail SCRAM negotiation with the JDBC driver.
-        // Prefer direct host when a pooler hostname is provided.
-        if (host.endsWith(".neon.tech") && host.contains("-pooler")) {
-            // Example:
-            // ep-abc-pooler.c-2.ap-southeast-1.aws.neon.tech -> ep-abc.ap-southeast-1.aws.neon.tech
-            // ep-abc-pooler.us-east-1.aws.neon.tech         -> ep-abc.us-east-1.aws.neon.tech
-            String normalized = host.replaceFirst("-pooler\\.c-\\d+\\.", ".");
-            normalized = normalized.replaceFirst("-pooler\\.", ".");
-            return normalized;
-        }
-
-        return host;
     }
 
     private static String decode(String value) {

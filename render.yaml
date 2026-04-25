@@ -26,4 +26,4 @@ services:
       - key: FIREBASE_PROJECT_ID
         sync: false
       - key: INIT_TEST_DATA
-        value: "true"
+        value: "false"
