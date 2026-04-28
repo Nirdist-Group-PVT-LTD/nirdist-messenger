@@ -31,6 +31,16 @@ Validation steps after changes
 
 Add CI guard: add a Maven Enforcer rule or a small script in CI to fail on multiple Jackson major artifacts.
 I'll pause here and wait for your preferred strategy (exclude Flyway + pin to 2.x, or migrate to Jackson 3 by upgrading Spring Boot). If you want, I can create a branch and implement the chosen mitigation, run the build, and open a PR with notes.
+
+Action taken (short-term mitigation)
+
+- Excluded `tools.jackson.core:jackson-databind` and `tools.jackson.core:jackson-core` from `org.flywaydb:flyway-core` and `org.flywaydb:flyway-database-postgresql` in `pom.xml` to force use of `com.fasterxml.jackson` 2.21.x pins defined in `dependencyManagement`.
+
+- Rationale: Flyway brought Jackson 3.x under the `tools.jackson.core` groupId; excluding those transitive artifacts lets us consistently use the 2.x Jackson artifacts Spring Boot manages as a lower-risk short-term mitigation.
+
+- Risk: Flyway may rely on APIs present only in Jackson 3.x; after exclusion we must run migrations in a staging environment and run the full test suite to detect runtime incompatibilities.
+
+- Validation: I will build the package and run the focused JWT unit test next.
 # CVE Triage — nirdist-backend
 
 This file records initial items to triage from the project's effective dependency tree.
