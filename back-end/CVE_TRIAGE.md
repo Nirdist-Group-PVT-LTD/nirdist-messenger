@@ -220,9 +220,9 @@ Notes / next verification steps for Jackson
 - If any 2.x artifacts exist, prefer upgrading them to 2.15.0+ or aligning to 3.1.1 where compatible.
 - Recommended immediate action: verify `mvn dependency:tree -Dincludes=com.fasterxml.jackson.core` and confirm resolved versions; if any are < patched releases, plan minimal upgrades or add `dependencyManagement` overrides.
 
-Dependency scan results (from `dependency-tree-utf8.txt`)
+Dependency scan results (historical snapshot from `dependency-tree-utf8.txt` before the Flyway exclusions)
 
-- Findings:
+- Findings from the earlier snapshot:
   - `org.springframework.boot:spring-boot-starter-json` pulls Jackson 2.x modules:
     - `com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.21.2`
     - `com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.2`
@@ -231,39 +231,17 @@ Dependency scan results (from `dependency-tree-utf8.txt`)
   - `io.jsonwebtoken:jjwt-jackson` transitively pulls `com.fasterxml.jackson.core:jackson-databind:2.21.2`.
   - `com.google.http-client:google-http-client-jackson2` and other Google libs reference `com.fasterxml.jackson.core:jackson-core:2.21.2`.
 
-- Issue: Mixed major Jackson versions are present on the classpath (2.21.2 and 3.1.1). This can cause runtime conflicts or unexpected behavior because Jackson 3 uses different groupIds/packaging and changed APIs.
+- Current validation after the `pom.xml` exclusions and a fresh `mvn dependency:tree` run on 2026-05-01:
+  - `tools.jackson.core:*` no longer appears in the backend tree.
+  - Remaining Jackson artifacts are all `com.fasterxml.jackson` 2.21.x / 2.21.
+  - The mixed-major Jackson issue is resolved in the working tree.
 
 - Recommended immediate actions:
-  1. Run a focused dependency tree check locally to confirm all Jackson coordinates:
+  1. Keep the CI guard that checks for `tools.jackson.core` so the mixed-major Jackson state does not return.
+  2. If you want the snapshot files to match the current state, regenerate `dependency-tree.txt` and `dependency-tree-utf8.txt` after the exclusions.
+  3. Continue monitoring Flyway release notes and Jackson CVEs in case the current exclusions need to be revisited later.
 
-     mvn dependency:tree -Dincludes=com.fasterxml.jackson.core,tools.jackson.core,com.fasterxml.jackson.datatype,com.fasterxml.jackson.module
-
-  2. Decide alignment strategy:
-     - Conservative: Align everything to Jackson 2.21.2 (the Spring Boot-managed 2.x line) by forcing `tools.jackson.core:jackson-databind` to 2.21.2 via `dependencyManagement` or exclusions. This is lower risk but may require downgrading Flyway (or adding a compatibility shim) if Flyway requires 3.x.
-     - Progressive: Upgrade project Spring Boot and direct dependencies to versions that officially support Jackson 3 (so all modules can move to 3.1.1). This is more work but resolves the mixed-major problem cleanly.
-
-  3. Short-term mitigation: Add explicit `dependencyManagement` entries to pin `jackson-databind`, `jackson-core`, and `jackson-annotations` to a single version and run `mvn -DskipTests package` to detect breakages. Example placeholder (choose 2.21.2 or 3.1.1 after decision):
-
-     <dependencyManagement>
-       <dependencies>
-         <dependency>
-           <groupId>com.fasterxml.jackson.core</groupId>
-           <artifactId>jackson-databind</artifactId>
-           <version>2.21.2</version>
-         </dependency>
-         <dependency>
-           <groupId>com.fasterxml.jackson.core</groupId>
-           <artifactId>jackson-core</artifactId>
-           <version>2.21.2</version>
-         </dependency>
-       </dependencies>
-     </dependencyManagement>
-
-  4. After alignment, run full test suite and smoke tests. If Flyway or other libs strictly require 3.x, prefer migrating to Jackson 3 with coordinated upgrades.
-
-  5. Add a CI check (Maven Enforcer or license) to fail builds on duplicate-major Jackson versions to prevent regressions.
-
-Next: I will fetch advisories for `protobuf-java`, `flyway-core`, `httpclient` (both 4.x and 5.x as present), `postgresql` JDBC, `guava`, and `jjwt` and add findings to this file. Proceeding to fetch those GHSA/NVD pages and record affected/fixed versions.
+Next: the backend mitigation is validated. The remaining advisories in this file are historical notes and maintenance items rather than blockers for the current tree.
 
 Additional library advisory mappings
 

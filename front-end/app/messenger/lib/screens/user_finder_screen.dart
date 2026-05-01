@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/auth_session.dart';
 import '../models/profile_summary.dart';
+import '../services/api_base_url.dart';
 import '../services/auth_api_client.dart';
 import '../services/messenger_api_client.dart';
 
@@ -15,7 +18,7 @@ class UserFinderScreen extends StatefulWidget {
     required this.friendIds,
     required this.onStartConversation,
     required this.onSendFriendRequest,
-    this.initialQuery = '+9779821663633',
+    this.initialQuery = '',
   });
 
   final AuthSession session;
@@ -33,21 +36,42 @@ class UserFinderScreen extends StatefulWidget {
 
 class _UserFinderScreenState extends State<UserFinderScreen> {
   late final TextEditingController _queryController;
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _resultsSectionKey = GlobalKey();
   List<ProfileSummary> _results = <ProfileSummary>[];
+  List<ProfileSummary> _directory = <ProfileSummary>[];
   bool _isLoading = false;
+  bool _isLoadingDirectory = false;
   String? _errorMessage;
+  String? _directoryError;
   int _requestId = 0;
+  int _directoryRequestId = 0;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
     _queryController = TextEditingController(text: widget.initialQuery);
+    unawaited(_loadDirectory());
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _queryController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scheduleSearch() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) {
+        return;
+      }
+
+      _runSearch(_queryController.text);
+    });
   }
 
   Future<void> _runSearch(String value) async {
@@ -79,6 +103,10 @@ class _UserFinderScreenState extends State<UserFinderScreen> {
         _results = results;
         _isLoading = false;
       });
+
+      if (query.isNotEmpty) {
+        _scrollToResults();
+      }
     } catch (error) {
       if (!mounted || requestId != _requestId) {
         return;
@@ -90,6 +118,63 @@ class _UserFinderScreenState extends State<UserFinderScreen> {
         _errorMessage = error is MessengerApiException ? error.message : 'Unable to search users.';
       });
     }
+  }
+
+  Future<void> _loadDirectory() async {
+    final requestId = ++_directoryRequestId;
+
+    if (mounted) {
+      setState(() {
+        _isLoadingDirectory = true;
+        _directoryError = null;
+      });
+    }
+
+    try {
+      final directory = await widget.apiClient.listProfiles(widget.session.profile.vId);
+
+      if (!mounted || requestId != _directoryRequestId) {
+        return;
+      }
+
+      setState(() {
+        _directory = directory;
+        _isLoadingDirectory = false;
+      });
+
+      if (_queryController.text.trim().isNotEmpty) {
+        _scrollToResults();
+      }
+    } catch (error) {
+      if (!mounted || requestId != _directoryRequestId) {
+        return;
+      }
+
+      setState(() {
+        _directory = <ProfileSummary>[];
+        _isLoadingDirectory = false;
+        _directoryError = error is MessengerApiException ? error.message : 'Unable to load users.';
+      });
+    }
+  }
+
+  void _scrollToResults() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      final context = _resultsSectionKey.currentContext;
+      if (context == null) {
+        return;
+      }
+
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 250),
+        alignment: 0.0,
+      );
+    });
   }
 
   Future<List<ProfileSummary>> _searchWithFallback(String query) async {
@@ -108,12 +193,14 @@ class _UserFinderScreenState extends State<UserFinderScreen> {
       }
     }
 
-    final profile = await widget.authApiClient.lookupPhoneNumber(query);
-    if (profile.vId == widget.session.profile.vId) {
-      return <ProfileSummary>[];
+    if (_looksLikePhoneNumber(query)) {
+      final profile = await widget.authApiClient.lookupPhoneNumber(query);
+      if (profile.vId != widget.session.profile.vId) {
+        return <ProfileSummary>[profile];
+      }
     }
 
-    return <ProfileSummary>[profile];
+    return widget.apiClient.listProfiles(widget.session.profile.vId);
   }
 
   bool _looksLikePhoneNumber(String value) {
@@ -122,9 +209,7 @@ class _UserFinderScreenState extends State<UserFinderScreen> {
   }
 
   String _requestUrl(String query) {
-    final normalizedBaseUrl = widget.apiBaseUrl.endsWith('/')
-        ? widget.apiBaseUrl.substring(0, widget.apiBaseUrl.length - 1)
-        : widget.apiBaseUrl;
+    final normalizedBaseUrl = normalizeApiBaseUrl(widget.apiBaseUrl);
 
     return Uri.parse('$normalizedBaseUrl/social/profiles/search').replace(
       queryParameters: <String, String>{
@@ -138,6 +223,11 @@ class _UserFinderScreenState extends State<UserFinderScreen> {
   Widget build(BuildContext context) {
     final query = _queryController.text.trim();
     final requestUrl = query.isEmpty ? null : _requestUrl(query);
+    final hasQuery = query.isNotEmpty;
+    final displayedResults = hasQuery
+        ? (_results.isNotEmpty ? _results : _directory)
+        : _directory;
+    final isShowingDirectoryFallback = hasQuery && _results.isEmpty && _directory.isNotEmpty;
 
     return Scaffold(
       body: Container(
@@ -149,9 +239,12 @@ class _UserFinderScreenState extends State<UserFinderScreen> {
           ),
         ),
         child: SafeArea(
-          child: ListView(
+          child: SingleChildScrollView(
+            controller: _scrollController,
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            children: <Widget>[
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
               Row(
                 children: <Widget>[
                   IconButton(
@@ -187,7 +280,10 @@ class _UserFinderScreenState extends State<UserFinderScreen> {
                   keyboardType: TextInputType.text,
                   textInputAction: TextInputAction.search,
                   onSubmitted: _runSearch,
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) {
+                    setState(() {});
+                    _scheduleSearch();
+                  },
                   decoration: InputDecoration(
                     labelText: 'Search users',
                     hintText: 'name, username, VId, phone, email',
@@ -219,7 +315,7 @@ class _UserFinderScreenState extends State<UserFinderScreen> {
                       _queryController.text = '+9779821663633';
                       _queryController.selection = TextSelection.fromPosition(TextPosition(offset: _queryController.text.length));
                       setState(() {});
-                      _runSearch(_queryController.text);
+                        _scheduleSearch();
                     },
                     child: const Text('Try +9779821663633'),
                   ),
@@ -239,6 +335,10 @@ class _UserFinderScreenState extends State<UserFinderScreen> {
                 const SizedBox(height: 12),
                 const LinearProgressIndicator(minHeight: 2),
               ],
+              if (_isLoadingDirectory && !hasQuery) ...<Widget>[
+                const SizedBox(height: 12),
+                const LinearProgressIndicator(minHeight: 2),
+              ],
               if (_errorMessage != null) ...<Widget>[
                 const SizedBox(height: 16),
                 _InfoCard(
@@ -246,40 +346,64 @@ class _UserFinderScreenState extends State<UserFinderScreen> {
                   child: Text(_errorMessage!),
                 ),
               ],
-              const SizedBox(height: 18),
-              Text('Results', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 12),
-              if (!_isLoading && _results.isEmpty)
+              if (_directoryError != null && _directory.isEmpty) ...<Widget>[
+                const SizedBox(height: 16),
                 _InfoCard(
-                  title: 'No users found',
-                  child: Text(
-                    query.isEmpty
-                        ? 'Enter a phone number or name to run the live API call.'
-                        : 'If Render returns 404, the backend deployment is still missing social routes.',
-                  ),
-                )
-              else
-                ..._results.map(
-                  (profile) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _ResultTile(
-                      profile: profile,
-                      isFriend: widget.friendIds.contains(profile.vId),
-                      onPrimary: () {
-                        if (widget.friendIds.contains(profile.vId)) {
-                          widget.onStartConversation(profile);
-                        } else {
-                          widget.onSendFriendRequest(profile);
-                        }
-                      },
-                    ),
-                  ),
+                  title: 'Users unavailable',
+                  child: Text(_directoryError!),
                 ),
+              ],
+              const SizedBox(height: 18),
+              Container(
+                key: _resultsSectionKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text('Results', style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 12),
+                    if (isShowingDirectoryFallback)
+                      _InfoCard(
+                        title: 'No direct matches found',
+                        child: Text(
+                          'Showing other users from the loaded directory instead.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    if (!_isLoading && !_isLoadingDirectory && displayedResults.isEmpty)
+                      _InfoCard(
+                        title: 'No users found',
+                        child: Text(
+                          query.isEmpty
+                              ? 'Users will appear here after the directory loads.'
+                              : 'Try another name, username, phone number, or email.',
+                        ),
+                      )
+                    else
+                      ...displayedResults.map(
+                        (profile) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _ResultTile(
+                            profile: profile,
+                            isFriend: widget.friendIds.contains(profile.vId),
+                            onPrimary: () {
+                              if (widget.friendIds.contains(profile.vId)) {
+                                widget.onStartConversation(profile);
+                              } else {
+                                widget.onSendFriendRequest(profile);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

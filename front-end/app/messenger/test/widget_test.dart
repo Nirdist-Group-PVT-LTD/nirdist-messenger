@@ -269,6 +269,20 @@ class _FakeMessengerApiClient extends MessengerApiClient {
   }
 }
 
+class _FailingSearchMessengerApiClient extends _FakeMessengerApiClient {
+  @override
+  Future<List<ProfileSummary>> searchProfiles({required String query, required int excludeUserId}) async {
+    throw const MessengerApiException('search route unavailable');
+  }
+}
+
+class _EmptySearchMessengerApiClient extends _FakeMessengerApiClient {
+  @override
+  Future<List<ProfileSummary>> searchProfiles({required String query, required int excludeUserId}) async {
+    return <ProfileSummary>[];
+  }
+}
+
 void main() {
   testWidgets('shows the login shell when no session is stored', (WidgetTester tester) async {
     final sessionController = SessionController(
@@ -506,11 +520,75 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'buddy');
+    final peopleSearchField = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.hintText == 'Name, username, email, or phone',
+    );
+
+    await tester.enterText(peopleSearchField, 'buddy');
     await tester.pumpAndSettle();
 
     expect(find.text('Request Buddy'), findsWidgets);
     expect(find.text('Test Friend'), findsNothing);
+  });
+
+  testWidgets('shows the directory when search has no direct matches', (WidgetTester tester) async {
+    const profile = ProfileSummary(
+      vId: 1,
+      username: 'test.user',
+      displayName: 'Test User',
+      email: 'test@example.com',
+      phoneNumber: '+15550000000',
+      firebaseUid: 'firebase-test-user',
+      avatarUrl: null,
+      bio: null,
+      phoneVerifiedAt: null,
+      createdAt: null,
+      updatedAt: null,
+    );
+
+    const session = AuthSession(
+      token: 'token-1234567890',
+      profile: profile,
+      message: 'Login successful',
+      created: false,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MessengerShell(
+          session: session,
+          apiBaseUrl: 'http://localhost:8080/api',
+          onSignOut: () async {},
+          apiClient: _FakeMessengerApiClient(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('People'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final peopleSearchField = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.hintText == 'Name, username, email, or phone',
+    );
+
+    await tester.enterText(peopleSearchField, 'nobody');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Search results'), findsOneWidget);
+    expect(find.text('Test Friend'), findsWidgets);
+    expect(find.text('Request Buddy'), findsWidgets);
+    expect(find.text('Zoe Winter'), findsWidgets);
   });
 
   testWidgets('opens the dedicated user finder and searches by phone number', (WidgetTester tester) async {
@@ -540,7 +618,7 @@ void main() {
         home: UserFinderScreen(
           session: session,
           apiBaseUrl: 'http://localhost:8080/api',
-          apiClient: _FakeMessengerApiClient(),
+          apiClient: _EmptySearchMessengerApiClient(),
           authApiClient: _FakeAuthApiClient(),
           friendIds: const <int>{2},
           onStartConversation: (_) async {},
@@ -551,7 +629,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Search now'));
+    await tester.tap(find.text('Try +9779821663633'));
     await tester.pumpAndSettle();
 
     expect(find.text('Nepal Phone User'), findsWidgets);
@@ -559,7 +637,54 @@ void main() {
     expect(find.text('Request'), findsWidgets);
   });
 
-  testWidgets('falls back to phone lookup when social search is unavailable', (WidgetTester tester) async {
+  testWidgets('shows other users when searching for the current user phone', (WidgetTester tester) async {
+    const profile = ProfileSummary(
+      vId: 5,
+      username: 'nepal.phone',
+      displayName: 'Nepal Phone User',
+      email: 'nepal.phone@example.com',
+      phoneNumber: '+9779821663633',
+      firebaseUid: 'firebase-nepal-phone',
+      avatarUrl: null,
+      bio: null,
+      phoneVerifiedAt: null,
+      createdAt: null,
+      updatedAt: null,
+    );
+
+    const session = AuthSession(
+      token: 'token-1234567890',
+      profile: profile,
+      message: 'Login successful',
+      created: false,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: UserFinderScreen(
+          session: session,
+          apiBaseUrl: 'http://localhost:8080/api',
+          apiClient: _EmptySearchMessengerApiClient(),
+          authApiClient: _FakeAuthApiClient(),
+          friendIds: const <int>{2},
+          onStartConversation: (_) async {},
+          onSendFriendRequest: (_) async {},
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Try +9779821663633'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Test Friend'), findsWidgets);
+    expect(find.text('Request Buddy'), findsWidgets);
+    expect(find.text('Zoe Winter'), findsWidgets);
+    expect(find.text('Nepal Phone User'), findsNothing);
+  });
+
+  testWidgets('falls back to phone lookup when social search fails for phone query', (WidgetTester tester) async {
     const profile = ProfileSummary(
       vId: 1,
       username: 'test.user',
@@ -581,14 +706,12 @@ void main() {
       created: false,
     );
 
-    final messengerApiClient = _FakeMessengerApiClient();
-
     await tester.pumpWidget(
       MaterialApp(
         home: UserFinderScreen(
           session: session,
           apiBaseUrl: 'http://localhost:8080/api',
-          apiClient: messengerApiClient,
+          apiClient: _FailingSearchMessengerApiClient(),
           authApiClient: _FakeAuthApiClient(),
           friendIds: const <int>{},
           onStartConversation: (_) async {},
@@ -599,8 +722,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), '+9779821663633');
-    await tester.tap(find.text('Search now'));
+    await tester.tap(find.text('Try +9779821663633'));
     await tester.pumpAndSettle();
 
     expect(find.text('Nepal Phone User'), findsWidgets);

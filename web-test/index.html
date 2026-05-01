@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nirdist API Test Console</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-shape bg-shape-a"></div>
+  <div class="bg-shape bg-shape-b"></div>
+
+  <main class="container">
+    <header class="hero">
+      <h1>Nirdist API Test Console</h1>
+      <p>Quickly verify Render deployment, endpoints, and payload behavior.</p>
+    </header>
+
+    <section class="panel settings">
+      <h2>Connection</h2>
+      <div class="grid">
+        <label>
+          Backend Base URL
+          <input id="baseUrl" type="url" placeholder="https://nirdist-backend-uctd.onrender.com" />
+        </label>
+        <label>
+          Bearer Token (optional)
+          <input id="bearerToken" type="text" placeholder="Paste JWT token if required" />
+        </label>
+      </div>
+      <div class="actions">
+        <button id="saveSettings" class="btn btn-primary">Save Settings</button>
+        <button id="checkHealth" class="btn">Check /api/health</button>
+      </div>
+      <p id="settingsMsg" class="note"></p>
+    </section>
+
+    <section class="panel presets">
+      <h2>Preset Requests</h2>
+      <div id="presetButtons" class="preset-grid"></div>
+    </section>
+
+    <section class="panel runner">
+      <h2>Custom Request</h2>
+      <div class="grid custom-grid">
+        <label>
+          Method
+          <select id="method">
+            <option>GET</option>
+            <option>POST</option>
+            <option>PUT</option>
+            <option>PATCH</option>
+            <option>DELETE</option>
+          </select>
+        </label>
+        <label>
+          Path
+          <input id="path" type="text" placeholder="/api/social/profiles" />
+        </label>
+      </div>
+      <label>
+        JSON Body
+        <textarea id="body" rows="8" placeholder='{"userId": 1, "otherUserId": 2}'></textarea>
+      </label>
+      <div class="actions">
+        <button id="sendRequest" class="btn btn-primary">Send Request</button>
+        <button id="clearBody" class="btn">Clear Body</button>
+      </div>
+    </section>
+
+    <section class="panel response">
+      <h2>Response</h2>
+      <div class="meta" id="responseMeta">No request sent yet.</div>
+      <pre id="responseOutput" class="output">Ready.</pre>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/auth_session.dart';
@@ -28,7 +30,7 @@ class SessionController extends ChangeNotifier {
 
   Future<void> bootstrap() async {
     try {
-      final storedSession = await _secureSessionStore.readSession();
+      final storedSession = await _secureSessionStore.readSession().timeout(const Duration(seconds: 2));
       if (_isValidSession(storedSession)) {
         _session = storedSession;
         _errorMessage = null;
@@ -96,7 +98,7 @@ class SessionController extends ChangeNotifier {
         return false;
       }
       _session = session;
-      await _secureSessionStore.saveSession(session);
+      unawaited(_persistSession(session));
       return true;
     } catch (error) {
       _errorMessage = error is AuthApiException
@@ -112,8 +114,16 @@ class SessionController extends ChangeNotifier {
   Future<void> signOut() async {
     _session = null;
     _errorMessage = null;
-    await _secureSessionStore.clear();
+    await _secureSessionStore.clear().timeout(const Duration(seconds: 2), onTimeout: () {});
     notifyListeners();
+  }
+
+  Future<void> _persistSession(AuthSession session) async {
+    try {
+      await _secureSessionStore.saveSession(session).timeout(const Duration(seconds: 2));
+    } catch (_) {
+      // Ignore persistence errors so login does not block on storage issues.
+    }
   }
 
   void clearError() {

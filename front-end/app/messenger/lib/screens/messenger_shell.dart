@@ -266,7 +266,6 @@ class _MessengerShellState extends State<MessengerShell> {
           friendIds: _friends.map((profile) => profile.vId).toSet(),
           onStartConversation: _startConversation,
           onSendFriendRequest: _sendFriendRequest,
-          initialQuery: '+9779821663633',
         ),
       ),
     );
@@ -664,7 +663,7 @@ class _PeopleTabState extends State<_PeopleTab> {
       setState(() {
         _searchResults = localMatches;
         _isSearching = false;
-        _searchError = null;
+        _searchError = error is MessengerApiException ? error.message : 'Unable to search users right now.';
       });
     }
   }
@@ -683,12 +682,10 @@ class _PeopleTabState extends State<_PeopleTab> {
         .toList(growable: false);
     final isSearching = normalizedQuery.isNotEmpty;
     final friendIds = widget.friends.map((profile) => profile.vId).toSet();
-    final searchResults = _searchResults
-        .where((profile) => _matchesSearchQuery(profile, normalizedQuery))
-        .toList(growable: false);
     final mergedSearchResults = <int, ProfileSummary>{
-      for (final profile in searchResults) profile.vId: profile,
+      for (final profile in _searchResults) profile.vId: profile,
     }.values.toList(growable: false);
+    final fallbackSearchResults = mergedSearchResults.isEmpty ? widget.allProfiles : mergedSearchResults;
 
     return _ShellScaffold(
       title: 'People',
@@ -740,49 +737,51 @@ class _PeopleTabState extends State<_PeopleTab> {
             padding: EdgeInsets.only(bottom: 18),
             child: LinearProgressIndicator(minHeight: 2),
           ),
-        if (isSearching && _searchError != null)
+        if (isSearching && _searchError != null) ...<Widget>[
           _EmptyStateCard(
             icon: Icons.person_search_outlined,
-            title: 'Search failed',
-            subtitle: _searchError!,
+            title: 'Search endpoint unavailable',
+            subtitle: 'Showing local matches from the loaded directory. $_searchError',
             actionLabel: 'Retry',
             onAction: () => _runSearch(_searchQuery),
-          )
-        else ...<Widget>[
-          if (isSearching) ...<Widget>[
-            const _SectionHeader(
-              title: 'Search results',
-              subtitle: 'Users returned directly from the backend search endpoint.',
-            ),
-            const SizedBox(height: 12),
-            if (mergedSearchResults.isEmpty)
-              _EmptyStateCard(
-                icon: Icons.person_search_outlined,
-                title: 'No matching users',
-                subtitle: 'Try another name, username, email, or phone number.',
-                actionLabel: 'Clear search',
-                onAction: _clearSearch,
-              )
-            else
-              ...mergedSearchResults.map(
-                (profile) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _PersonTile(
-                    profile: profile,
-                    primaryLabel: friendIds.contains(profile.vId) ? 'Chat' : 'Request',
-                    primaryIcon: friendIds.contains(profile.vId) ? Icons.message_outlined : Icons.person_add_alt_1,
-                    onPrimary: () {
-                      if (friendIds.contains(profile.vId)) {
-                        widget.onStartConversation(profile);
-                      } else {
-                        widget.onSendFriendRequest(profile);
-                      }
-                    },
-                  ),
+          ),
+          const SizedBox(height: 18),
+        ],
+        if (isSearching) ...<Widget>[
+          const _SectionHeader(
+            title: 'Search results',
+            subtitle: 'Users returned by live search, or the full directory when no direct matches are found.',
+          ),
+          const SizedBox(height: 12),
+          if (fallbackSearchResults.isEmpty)
+            _EmptyStateCard(
+              icon: Icons.person_search_outlined,
+              title: 'No matching users',
+              subtitle: 'Try another name, username, email, or phone number.',
+              actionLabel: 'Clear search',
+              onAction: _clearSearch,
+            )
+          else
+            ...fallbackSearchResults.map(
+              (profile) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _PersonTile(
+                  profile: profile,
+                  primaryLabel: friendIds.contains(profile.vId) ? 'Chat' : 'Request',
+                  primaryIcon: friendIds.contains(profile.vId) ? Icons.message_outlined : Icons.person_add_alt_1,
+                  onPrimary: () {
+                    if (friendIds.contains(profile.vId)) {
+                      widget.onStartConversation(profile);
+                    } else {
+                      widget.onSendFriendRequest(profile);
+                    }
+                  },
                 ),
               ),
-            const SizedBox(height: 18),
-          ],
+            ),
+          const SizedBox(height: 18),
+        ],
+        ...<Widget>[
           const _SectionHeader(
             title: 'All users',
             subtitle: 'Every user except you, pulled from the backend for debugging.',

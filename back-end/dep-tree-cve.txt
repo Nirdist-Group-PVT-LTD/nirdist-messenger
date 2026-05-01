@@ -1,0 +1,5 @@
+com.nirdist:nirdist-backend:jar:1.0.0
+\- com.google.firebase:firebase-admin:jar:9.8.0:compile
+   \- com.google.cloud:google-cloud-storage:jar:2.63.0:compile
+      +- com.google.protobuf:protobuf-java:jar:4.33.2:compile
+      \- io.grpc:grpc-netty-shaded:jar:1.76.2:compile
