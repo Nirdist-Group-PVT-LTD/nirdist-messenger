@@ -61,7 +61,7 @@ Flagged artifacts (from dependency-tree-utf8.txt)
 - `com.google.protobuf:protobuf-java` — resolved: 3.25.5
 - `org.flywaydb:flyway-core` — resolved: 12.5.0
 - `org.apache.httpcomponents:httpclient` — resolved: 4.5.14
-- `org.postgresql:postgresql` — resolved: 42.7.2
+- `org.postgresql:postgresql` — resolved: 42.7.10
 - `com.google.guava:guava` — resolved: 33.5.0-jre
 - `io.jsonwebtoken:jjwt` — resolved: 0.11.5
 
@@ -251,11 +251,11 @@ Additional library advisory mappings
   - Patched versions: 3.25.5, 4.27.5, 4.28.2
   - Our resolved `protobuf-java:3.25.5` — status: patched
 
-2) `org.postgresql:postgresql` — resolved version: `42.7.2`
+2) `org.postgresql:postgresql` — resolved version: `42.7.10`
   - Advisory: `CVE-2025-49146` (GHSA-hq9p-pm7w-8p54)
   - Affected versions: >= 42.7.4 and < 42.7.7
   - Patched version: 42.7.7
-  - Our resolved `postgresql:42.7.2` — status: not in affected range (no action required for this advisory), but continue monitoring for other pgjdbc advisories
+  - Our resolved `postgresql:42.7.10` — status: not in affected range (no action required for this advisory), but continue monitoring for other pgjdbc advisories
 
 3) Apache HttpClient
   - We have two HttpClient artifacts present:
@@ -285,5 +285,5 @@ Notes / recommended next steps (short):
 - Run `mvn dependency:tree -Dincludes=com.fasterxml.jackson.core,tools.jackson.core,com.fasterxml.jackson.datatype,com.fasterxml.jackson.module` and confirm all Jackson coordinates (we already saw mixed 2.x and 3.x).
 - Decide Jackson alignment strategy (conservative pin to 2.21.2 vs migrate to 3.1.1). If pinning to 2.x prefer adding `dependencyManagement` overrides and exclude `tools.jackson.core:jackson-databind:3.x` from Flyway if incompatible.
 - For HttpClient: schedule upgrade planning — moving `httpclient5` to `5.6.1+` is advisable when compatibility allows; confirm whether `google-http-client` transitive uses require changes.
-- For PostgreSQL JDBC: our version `42.7.2` is not in the affected `42.7.4-42.7.6` range for `CVE-2025-49146`, but recommend upgrading to `42.7.7` in next maintenance window to get the patched baseline.
+- For PostgreSQL JDBC: our version `42.7.10` is not in the affected `42.7.4-42.7.6` range for `CVE-2025-49146`, and it is newer than the recommended `42.7.7` patched baseline.
 - Add CI checks or Maven Enforcer rules to detect mixed Jackson major versions and block merges until resolved.
